@@ -1,0 +1,8 @@
+# Replace @your-github-username with the people who must review each area.
+# Then turn on "Require review from Code Owners" in the branch protection for main.
+#
+# *                     @your-github-username
+# /lib/server/          @your-github-username
+# /scripts/             @your-github-username
+# /events/              @your-github-username
+# /.github/             @your-github-username

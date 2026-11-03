@@ -1,0 +1,41 @@
+{
+  "name": "nrep-event-lite",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Check-in, digital tags and certificates for small NREP events. First event: WIND26.",
+  "type": "module",
+  "engines": {
+    "node": ">=20.9"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "test": "node --conditions=react-server --test \"tests/*.test.mjs\"",
+    "check:architecture": "node scripts/check-architecture.mjs",
+    "check": "npm run lint && npm run check:architecture && npm test",
+    "db:setup": "node scripts/setup-appwrite.mjs",
+    "event:seed": "node scripts/seed-event.mjs",
+    "staff:add": "node scripts/add-staff.mjs",
+    "design:preview": "node scripts/preview-designs.mjs"
+  },
+  "dependencies": {
+    "@pdf-lib/fontkit": "1.1.1",
+    "@resvg/resvg-js": "2.6.2",
+    "jsqr": "1.4.0",
+    "next": "16.2.11",
+    "nodemailer": "^8.0.11",
+    "pdf-lib": "1.17.1",
+    "qrcode": "1.5.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "server-only": "0.0.1",
+    "sharp": "^0.34.4"
+  },
+  "devDependencies": {
+    "dotenv": "^17.2.3",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "16.2.11"
+  }
+}

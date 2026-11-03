@@ -1,0 +1,45 @@
+{
+  "name": "WIND26 attendee tag (A6 portrait)",
+  "page": { "widthMm": 105, "heightMm": 148 },
+  "background": "assets/tag-background.png",
+  "elements": [
+    {
+      "type": "text",
+      "value": "{fullName}",
+      "transform": "uppercase",
+      "font": "Poppins-ExtraBold",
+      "sizePt": 17,
+      "minSizePt": 11,
+      "maxLines": 2,
+      "lineHeight": 1.12,
+      "grow": "up",
+      "color": "#111111",
+      "x": 8,
+      "width": 89,
+      "baseline": 40.4,
+      "align": "center"
+    },
+    {
+      "type": "text",
+      "value": "{organization}",
+      "font": "Poppins-Medium",
+      "sizePt": 9.5,
+      "minSizePt": 6.5,
+      "maxLines": 1,
+      "color": "#1A9E9C",
+      "x": 8,
+      "width": 89,
+      "baseline": 45.7,
+      "align": "center"
+    },
+    {
+      "type": "qr",
+      "value": "{tagUrl}",
+      "x": 7.3,
+      "y": 122.8,
+      "size": 16.6,
+      "color": "#111111",
+      "errorCorrectionLevel": "M"
+    }
+  ]
+}

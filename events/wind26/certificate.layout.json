@@ -1,0 +1,53 @@
+{
+  "name": "WIND26 certificate of completion (A4 landscape)",
+  "page": { "widthMm": 297, "heightMm": 210 },
+  "background": "assets/certificate-background.png",
+  "elements": [
+    {
+      "type": "text",
+      "value": "{fullName}",
+      "font": "GreatVibes-Regular",
+      "sizePt": 44,
+      "minSizePt": 26,
+      "maxLines": 1,
+      "color": "#F0941C",
+      "x": 48,
+      "width": 181,
+      "baseline": 133.5,
+      "align": "center"
+    },
+    {
+      "type": "qr",
+      "value": "{verifyUrl}",
+      "x": 150,
+      "y": 175,
+      "size": 17,
+      "color": "#1F2933",
+      "errorCorrectionLevel": "M"
+    },
+    {
+      "type": "text",
+      "value": "Verify at {verifyHost}",
+      "font": "Poppins-Medium",
+      "sizePt": 6,
+      "minSizePt": 5,
+      "color": "#4A5560",
+      "x": 118.5,
+      "width": 80,
+      "baseline": 196,
+      "align": "center"
+    },
+    {
+      "type": "text",
+      "value": "ID {certificateId}",
+      "font": "Poppins-Regular",
+      "sizePt": 5.5,
+      "minSizePt": 4.5,
+      "color": "#4A5560",
+      "x": 118.5,
+      "width": 80,
+      "baseline": 199,
+      "align": "center"
+    }
+  ]
+}
