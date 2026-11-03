@@ -25,6 +25,8 @@ export async function api(path, { method = "GET", body } = {}) {
     throw new ApiError("No connection. Check the internet and try again.", 0, "offline")
   }
   if (response.status === 401 && typeof window !== "undefined") {
+    // Full reload on purpose: it clears all in-memory data after sign-out or an expired session.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = "/login"
   }
   const data = await response.json().catch(() => ({}))

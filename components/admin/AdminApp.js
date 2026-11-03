@@ -58,6 +58,8 @@ export default function AdminApp({ staff }) {
 
   async function signOut() {
     await api("/api/auth/sign-out", { method: "POST" }).catch(() => {})
+    // Full reload on purpose: it clears all in-memory data after sign-out or an expired session.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = "/login"
   }
 
