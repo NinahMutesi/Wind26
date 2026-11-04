@@ -8,3 +8,4 @@ previews/
 *.log
 .DS_Store
 coverage/
+ecosystem.config.js
