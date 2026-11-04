@@ -28,4 +28,21 @@ test("configuration has no fallbacks and refuses unsafe values", () => {
   assert.throws(() => readEnv({ ...goodEnv, SESSION_SECRET: "k".repeat(40), APPWRITE_API_KEY: "k".repeat(40) }), /must not be the Appwrite API key/)
   assert.throws(() => readEnv({ ...goodEnv, APP_URL: "http://events.example.org" }), /https/)
   assert.throws(() => readEnv({ ...goodEnv, EMAIL_TRANSPORT: "console" }), /local development/)
+  assert.equal(readEnv({ ...goodEnv, EMAIL_TRANSPORT: "none" }).email.transport, "none")
+})
+
+test("open admin access is refused unless the site only runs on this computer", () => {
+  const local = { ...goodEnv, NODE_ENV: "development", APP_URL: "http://localhost:3000", EMAIL_TRANSPORT: "console" }
+  assert.equal(readEnv(local).adminOpen, false)
+  assert.equal(readEnv({ ...local, ADMIN_ACCESS: "open" }).adminOpen, true)
+  assert.throws(() => readEnv({ ...goodEnv, ADMIN_ACCESS: "open" }), /local use only/)
+  assert.throws(() => readEnv({ ...local, ADMIN_ACCESS: "open", APP_URL: "http://192.168.1.20:3000" }), /localhost/)
+  assert.throws(() => readEnv({ ...local, ADMIN_ACCESS: "anyone" }), /signin, password or open/)
+})
+
+test("a shared admin password must be long and not reuse another secret", () => {
+  assert.equal(readEnv({ ...goodEnv, ADMIN_ACCESS: "password", ADMIN_PASSWORD: "correct horse battery" }).adminAccess, "password")
+  assert.throws(() => readEnv({ ...goodEnv, ADMIN_ACCESS: "password" }), /at least 12/)
+  assert.throws(() => readEnv({ ...goodEnv, ADMIN_ACCESS: "password", ADMIN_PASSWORD: "short" }), /at least 12/)
+  assert.throws(() => readEnv({ ...goodEnv, ADMIN_ACCESS: "password", ADMIN_PASSWORD: goodEnv.SESSION_SECRET }), /reuse/)
 })

@@ -1,10 +1,10 @@
-// Creates the database, collections, attributes and indexes from lib/server/db/schema.mjs.
-// Schema only: it never copies documents from anywhere.
+// Creates the database, tables, columns and indexes from lib/server/db/schema.mjs,
+// through Appwrite's TablesDB API. Schema only: it never copies rows from anywhere.
 //
 //   npm run db:setup              # dry run: shows what would change
 //   npm run db:setup -- --apply   # makes the changes
 //
-// Uses APPWRITE_SETUP_API_KEY (needs databases.* and collections.* scopes).
+// Uses APPWRITE_SETUP_API_KEY. Scopes: databases, tables, columns and indexes (read and write).
 import { SCHEMA } from "../lib/server/db/schema.mjs"
 import { banner, connect, fail, parseArgs } from "./lib/cli.mjs"
 
@@ -14,14 +14,29 @@ const target = connect({ keyVar: "APPWRITE_SETUP_API_KEY" })
 const { client, databaseId } = target
 banner(target, apply)
 
-const db = `/databases/${encodeURIComponent(databaseId)}`
-const colPath = (id) => `${db}/collections/${encodeURIComponent(id)}`
+const db = `/tablesdb/${encodeURIComponent(databaseId)}`
+const tablePath = (id) => `${db}/tables/${encodeURIComponent(id)}`
+const VARCHAR_MAX = 4000 // longer strings become mediumtext, which is stored outside the row
+
+// Maps the schema's column types onto TablesDB column endpoints and bodies.
+function columnRequest(attr) {
+  if (attr.type === "string") {
+    return attr.size > VARCHAR_MAX
+      ? ["mediumtext", { key: attr.key, required: attr.required }]
+      : ["varchar", { key: attr.key, size: attr.size, required: attr.required }]
+  }
+  if (attr.type === "integer") return ["integer", { key: attr.key, required: attr.required, min: attr.min, max: attr.max }]
+  if (attr.type === "enum") return ["enum", { key: attr.key, elements: attr.elements, required: attr.required }]
+  if (attr.type === "datetime") return ["datetime", { key: attr.key, required: attr.required }]
+  throw new Error(`Unknown column type ${attr.type}`)
+}
 
 async function getOrNull(path) {
   try {
     return await client.request(path)
   } catch (error) {
     if (error.status === 404) return null
+    if (error.status === 401) fail(`The setup key is missing a permission: ${error.message.replace(/^\S+@\S+ /, "")}`)
     throw error
   }
 }
@@ -39,61 +54,57 @@ async function waitFor(path, label) {
 const database = await getOrNull(db)
 if (!database) {
   console.log(`+ database ${databaseId}`)
-  if (apply) await client.request("/databases", { method: "POST", body: { databaseId, name: "Events" } })
+  if (apply) await client.request("/tablesdb", { method: "POST", body: { databaseId, name: "Events" } })
 } else {
   // Guard against pointing this at the REC database by mistake.
-  const existing = await client.request(`${db}/collections`, { queries: [JSON.stringify({ method: "limit", values: [100] })] })
-  const foreign = (existing.collections || []).filter((c) => /^rec_/.test(c.$id) || ["scanner_allocations", "event_scans", "session_cross_flags"].includes(c.$id))
+  const existing = await client.request(`${db}/tables`, { queries: [JSON.stringify({ method: "limit", values: [100] })] })
+  const foreign = (existing.tables || []).filter((t) => /^rec_/.test(t.$id) || ["scanner_allocations", "event_scans", "session_cross_flags"].includes(t.$id))
   if (foreign.length) {
-    fail(`Database ${databaseId} contains REC collections (${foreign.map((c) => c.$id).join(", ")}). Use a new project and database for this system.`)
+    fail(`Database ${databaseId} contains REC tables (${foreign.map((t) => t.$id).join(", ")}). Use a new project and database for this system.`)
   }
 }
 
-for (const collection of SCHEMA) {
-  const current = database ? await getOrNull(colPath(collection.id)) : null
+for (const table of SCHEMA) {
+  const current = database ? await getOrNull(tablePath(table.id)) : null
   if (!current) {
-    console.log(`+ collection ${collection.id}`)
+    console.log(`+ table ${table.id}`)
     if (apply) {
-      await client.request(`${db}/collections`, {
+      await client.request(`${db}/tables`, {
         method: "POST",
-        body: { collectionId: collection.id, name: collection.name, permissions: [], documentSecurity: false, enabled: true },
+        body: { tableId: table.id, name: table.name, permissions: [], rowSecurity: false, enabled: true },
       })
     }
-  } else if ((current.$permissions || []).length || current.documentSecurity) {
-    console.log(`~ collection ${collection.id}: removing client permissions ${JSON.stringify(current.$permissions)}`)
+  } else if ((current.$permissions || []).length || current.rowSecurity) {
+    console.log(`~ table ${table.id}: removing client permissions ${JSON.stringify(current.$permissions)}`)
     if (apply) {
-      await client.request(colPath(collection.id), {
+      await client.request(tablePath(table.id), {
         method: "PUT",
-        body: { name: current.name, permissions: [], documentSecurity: false, enabled: true },
+        body: { name: current.name, permissions: [], rowSecurity: false, enabled: true },
       })
     }
   }
 
-  for (const attr of collection.attributes) {
-    const exists = current ? await getOrNull(`${colPath(collection.id)}/attributes/${attr.key}`) : null
+  for (const attr of table.attributes) {
+    const exists = current ? await getOrNull(`${tablePath(table.id)}/columns/${attr.key}`) : null
     if (exists) continue
-    console.log(`  + attribute ${collection.id}.${attr.key} (${attr.type}${attr.required ? ", required" : ""})`)
-    if (!apply) continue
-    const body = { key: attr.key, required: attr.required }
-    if (attr.type === "string") body.size = attr.size
-    if (attr.type === "integer") Object.assign(body, { min: attr.min, max: attr.max })
-    if (attr.type === "enum") body.elements = attr.elements
-    await client.request(`${colPath(collection.id)}/attributes/${attr.type}`, { method: "POST", body })
+    const [type, body] = columnRequest(attr)
+    console.log(`  + column ${table.id}.${attr.key} (${type}${attr.required ? ", required" : ""})`)
+    if (apply) await client.request(`${tablePath(table.id)}/columns/${type}`, { method: "POST", body })
   }
   if (apply) {
-    for (const attr of collection.attributes) await waitFor(`${colPath(collection.id)}/attributes/${attr.key}`, `${collection.id}.${attr.key}`)
+    for (const attr of table.attributes) await waitFor(`${tablePath(table.id)}/columns/${attr.key}`, `${table.id}.${attr.key}`)
   }
 
-  for (const index of collection.indexes) {
-    const exists = current ? await getOrNull(`${colPath(collection.id)}/indexes/${index.key}`) : null
+  for (const index of table.indexes) {
+    const exists = current ? await getOrNull(`${tablePath(table.id)}/indexes/${index.key}`) : null
     if (exists) continue
-    console.log(`  + index ${collection.id}.${index.key} (${index.type}: ${index.attributes.join(", ")})`)
+    console.log(`  + index ${table.id}.${index.key} (${index.type}: ${index.attributes.join(", ")})`)
     if (!apply) continue
-    await client.request(`${colPath(collection.id)}/indexes`, {
+    await client.request(`${tablePath(table.id)}/indexes`, {
       method: "POST",
-      body: { key: index.key, type: index.type, attributes: index.attributes, orders: index.attributes.map(() => "ASC") },
+      body: { key: index.key, type: index.type, columns: index.attributes, orders: index.attributes.map(() => "ASC") },
     })
-    await waitFor(`${colPath(collection.id)}/indexes/${index.key}`, `index ${collection.id}.${index.key}`)
+    await waitFor(`${tablePath(table.id)}/indexes/${index.key}`, `index ${table.id}.${index.key}`)
   }
 }
 

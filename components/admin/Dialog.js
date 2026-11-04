@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import Icon from "./Icon"
 
-export default function Dialog({ open, title, onClose, children }) {
+export default function Dialog({ open, title, onClose, children, wide = false }) {
   const ref = useRef(null)
   useEffect(() => {
     const el = ref.current
@@ -11,12 +12,12 @@ export default function Dialog({ open, title, onClose, children }) {
     if (!open && el.open) el.close()
   }, [open])
   return (
-    <dialog ref={ref} onClose={onClose} aria-label={title}>
+    <dialog ref={ref} onClose={onClose} aria-label={title} className={wide ? "wide" : ""}>
       {open && (
-        <div className="card stack">
-          <div className="row spread">
+        <div className="dialog-body">
+          <div className="dialog-head">
             <h2>{title}</h2>
-            <button type="button" className="link" onClick={onClose}>Close</button>
+            <button type="button" className="ghost icon-btn" onClick={onClose} aria-label="Close"><Icon name="x" /></button>
           </div>
           {children}
         </div>
@@ -30,8 +31,48 @@ export function Notice({ message }) {
   return <p className={`notice ${message.tone}`} role="status">{message.text}</p>
 }
 
+// Floating message for the result of an action. Errors stay until dismissed.
+export function Toast({ message, onClose }) {
+  useEffect(() => {
+    if (!message || message.tone === "bad" || message.tone === "info") return undefined
+    const t = setTimeout(onClose, 6000)
+    return () => clearTimeout(t)
+  }, [message, onClose])
+  if (!message) return null
+  return (
+    <div className={`notice toast ${message.tone}`} role="status" aria-live="polite">
+      <span>{message.text}</span>
+      <button type="button" onClick={onClose} aria-label="Dismiss"><Icon name="x" size={16} /></button>
+    </div>
+  )
+}
+
+// One busy flag and one message per page. run() shows progress, the result or the error.
+export function useAction(reload) {
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState(null)
+  const clear = useCallback(() => setMessage(null), [])
+  const run = useCallback(async (action, success) => {
+    setBusy(true)
+    setMessage(null)
+    try {
+      const result = await action((text) => setMessage({ tone: "info", text }))
+      const text = typeof success === "function" ? success(result) : success
+      if (text) setMessage(typeof text === "string" ? { tone: "ok", text } : text)
+      if (reload) await reload()
+      return result ?? true
+    } catch (error) {
+      setMessage({ tone: "bad", text: error.message })
+      return null
+    } finally {
+      setBusy(false)
+    }
+  }, [reload])
+  return { busy, message, setMessage, clear, run }
+}
+
 // Runs an action over items in batches and reports progress, so long jobs
-// (emailing 60 tags) stay within request limits and show what's happening.
+// (emailing 70 badges) stay within request limits and show what's happening.
 export async function inBatches(items, size, run, onProgress) {
   const results = []
   for (let i = 0; i < items.length; i += size) {
@@ -41,3 +82,5 @@ export async function inBatches(items, size, run, onProgress) {
   }
   return results
 }
+
+export const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`

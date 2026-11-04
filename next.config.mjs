@@ -18,6 +18,7 @@ const csp = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   poweredByHeader: false,
+  devIndicators: false,
   serverExternalPackages: ["@resvg/resvg-js", "@pdf-lib/fontkit", "pdf-lib", "qrcode", "nodemailer"],
   // Rendering reads fonts and event designs from disk at runtime.
   outputFileTracingIncludes: {

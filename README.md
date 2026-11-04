@@ -34,8 +34,10 @@ Attendance is one check-in per person per day. Certificates go to attendees who 
 
 1. **Create a new Appwrite project.** Never reuse REC's project, database or keys.
 2. Create two API keys in that project:
-   - *Setup key*: `databases.read/write`, `collections.read/write`, `attributes.read/write`, `indexes.read/write`, `documents.read/write`. Keep it on your machine only.
-   - *Runtime key*: `documents.read` and `documents.write` only. This is the one the server uses.
+   - *Setup key*: under **Database**, `databases.read/write`, `tables.read/write`, `columns.read/write`, `indexes.read/write`. Keep it on your machine only.
+   - *Runtime key*: `rows.read` and `rows.write` only. This is the one the server uses.
+
+   The app uses Appwrite's TablesDB API (Appwrite 1.8 or later), so these are the scope names the console shows.
 3. `cp .env.example .env.local` and fill it in. Generate `SESSION_SECRET` with the command in the file.
 4. Install and set up the database. Every script is a dry run until you add `--apply`.
    ```bash

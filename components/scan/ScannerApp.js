@@ -19,7 +19,7 @@ function beep(ok) {
   } catch { /* sound is optional */ }
 }
 
-export default function ScannerApp() {
+export default function ScannerApp({ local = false }) {
   const [summary, setSummary] = useState(null)
   const [result, setResult] = useState(null)
   const [cameraOn, setCameraOn] = useState(false)
@@ -157,7 +157,7 @@ export default function ScannerApp() {
         </div>
         <div className="row">
           {summary && <span className="pill ok num" title="Checked in today">{summary.checkedInToday} / {summary.total}</span>}
-          <button className="secondary" onClick={signOut}>Sign out</button>
+          {local ? <a className="button secondary" href="/admin">Dashboard</a> : <button className="secondary" onClick={signOut}>Sign out</button>}
         </div>
       </div>
 
@@ -233,7 +233,7 @@ export default function ScannerApp() {
           </form>
         )}
       </div>
-      <p className="muted small">Signed in as {summary?.operator?.name}. Hand checks are logged with your name.</p>
+      {!local && <p className="muted small">Signed in as {summary?.operator?.name}. Hand checks are logged with your name.</p>}
     </main>
   )
 }
