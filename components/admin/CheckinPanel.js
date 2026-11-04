@@ -112,7 +112,7 @@ export default function CheckinPanel({ event, attendees, reload, local }) {
         </section>
       )}
 
-      <Dialog open={Boolean(change)} title={change ? `${change.label}?` : ""} onClose={() => setChange(null)}>
+      <Dialog message={message} open={Boolean(change)} title={change ? `${change.label}?` : ""} onClose={() => setChange(null)}>
         {change && (
           <form className="stack" onSubmit={changeStatus}>
             {change.status === "live" && <p>Scanners can check people in during check-in hours on event days.</p>}

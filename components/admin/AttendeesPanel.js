@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { api, formatTime } from "@/components/api"
 import { MANUAL_REASONS, ROLES } from "@/lib/shared/validation.mjs"
 import Dialog, { Toast, plural, useAction } from "./Dialog"
@@ -48,14 +48,24 @@ export default function AttendeesPanel({ event, attendees, reload }) {
     else clear()
   }
 
-  async function checkImport() {
+  // Checks the rows without importing. A result for text that has since changed is ignored.
+  const checkImport = useCallback(async (csv) => {
+    setImporting((cur) => (cur && cur.csv === csv ? { ...cur, checking: true, error: "" } : cur))
     try {
-      const preview = await api(`${base}/import`, { method: "POST", body: { csv: importing.csv, commit: false } })
-      setImporting((cur) => ({ ...cur, preview, error: "" }))
+      const preview = await api(`${base}/import`, { method: "POST", body: { csv, commit: false } })
+      setImporting((cur) => (cur && cur.csv === csv ? { ...cur, preview, checking: false, error: "" } : cur))
     } catch (error) {
-      setImporting((cur) => ({ ...cur, preview: null, error: error.message }))
+      setImporting((cur) => (cur && cur.csv === csv ? { ...cur, preview: null, checking: false, error: error.message } : cur))
     }
-  }
+  }, [base])
+
+  // Pasted or typed rows are checked shortly after the typing stops.
+  const pendingCsv = importing && !importing.preview && !importing.error && !importing.checking ? importing.csv.trim() : ""
+  useEffect(() => {
+    if (!pendingCsv) return undefined
+    const timer = setTimeout(() => checkImport(importing.csv), 600)
+    return () => clearTimeout(timer)
+  }, [pendingCsv, importing?.csv, checkImport])
 
   async function commitImport() {
     const ok = await run(() => api(`${base}/import`, { method: "POST", body: { csv: importing.csv, commit: true } }),
@@ -66,14 +76,8 @@ export default function AttendeesPanel({ event, attendees, reload }) {
   async function readFile(file) {
     if (!file) return
     if (file.size > 1_000_000) { setImporting({ csv: "", preview: null, error: "That file is larger than 1 MB." }); return }
-    const csv = await file.text()
-    setImporting({ csv, preview: null, error: "" })
-    try {
-      const preview = await api(`${base}/import`, { method: "POST", body: { csv, commit: false } })
-      setImporting({ csv, preview, error: "" })
-    } catch (error) {
-      setImporting({ csv, preview: null, error: error.message })
-    }
+    // Picking a file fills the text box; the check above then runs on its own.
+    setImporting({ csv: await file.text(), preview: null, error: "" })
   }
 
   async function submitDay(e) {
@@ -194,7 +198,7 @@ export default function AttendeesPanel({ event, attendees, reload }) {
         </table>
       </div>
 
-      <Dialog open={Boolean(editing)} title={editing?.id ? "Edit attendee" : "Add attendee"} onClose={() => setEditing(null)}>
+      <Dialog message={message} open={Boolean(editing)} title={editing?.id ? "Edit attendee" : "Add attendee"} onClose={() => setEditing(null)}>
         {editing && (
           <form className="stack" onSubmit={saveAttendee}>
             {editing.error && <p className="notice bad">{editing.error}</p>}
@@ -222,7 +226,7 @@ export default function AttendeesPanel({ event, attendees, reload }) {
         )}
       </Dialog>
 
-      <Dialog open={Boolean(importing)} title="Import attendees" wide onClose={() => setImporting(null)}>
+      <Dialog message={message} open={Boolean(importing)} title="Import attendees" wide onClose={() => setImporting(null)}>
         {importing && (
           <div className="stack">
             <p className="muted small">CSV with a header row: <strong>Name</strong>, Organisation, Email, Phone, Role.</p>
@@ -231,6 +235,10 @@ export default function AttendeesPanel({ event, attendees, reload }) {
               <textarea id="csv-text" value={importing.csv} onChange={(e) => setImporting({ csv: e.target.value, preview: null, error: "" })} placeholder={"Name,Organisation,Email\nGrace Achieng,Example Energy Ltd,grace@example.org"} />
             </label>
             {importing.error && <p className="notice bad">{importing.error}</p>}
+            {importing.checking && <p className="notice info">Checking the rows…</p>}
+            {importing.preview && importing.preview.invalid > 0 && (
+              <p className="small muted">Fix the rows marked below in your file, then choose it again or edit the text above.</p>
+            )}
             {importing.preview && (
               <>
                 <p className={`notice ${importing.preview.invalid ? "warn" : "ok"}`}>
@@ -253,16 +261,16 @@ export default function AttendeesPanel({ event, attendees, reload }) {
               </>
             )}
             <div className="dialog-foot">
-              <button className="secondary" disabled={busy || !importing.csv.trim()} onClick={checkImport}>Check</button>
-              <button disabled={busy || !importing.preview || importing.preview.invalid > 0 || !importing.preview.valid} onClick={commitImport}>
-                Import {importing.preview?.valid || ""}
+              <button className="secondary" onClick={() => setImporting(null)}>Cancel</button>
+              <button disabled={busy || importing.checking || !importing.preview || importing.preview.invalid > 0 || !importing.preview.valid} onClick={commitImport}>
+                {busy ? "Importing…" : `Import ${importing.preview?.valid ? plural(importing.preview.valid, "attendee") : ""}`}
               </button>
             </div>
           </div>
         )}
       </Dialog>
 
-      <Dialog open={Boolean(dayAction)} title={dayAction ? `${dayAction.present ? "Remove" : "Record"} day ${dayAction.day}` : ""} onClose={() => setDayAction(null)}>
+      <Dialog message={message} open={Boolean(dayAction)} title={dayAction ? `${dayAction.present ? "Remove" : "Record"} day ${dayAction.day}` : ""} onClose={() => setDayAction(null)}>
         {dayAction && (
           <form className="stack" onSubmit={submitDay}>
             <p><strong>{dayAction.attendee.fullName}</strong></p>
@@ -284,7 +292,7 @@ export default function AttendeesPanel({ event, attendees, reload }) {
         )}
       </Dialog>
 
-      <Dialog open={Boolean(confirm)} title={confirm?.kind === "reissue" ? "Replace QR code?" : "Delete attendee?"} onClose={() => setConfirm(null)}>
+      <Dialog message={message} open={Boolean(confirm)} title={confirm?.kind === "reissue" ? "Replace QR code?" : "Delete attendee?"} onClose={() => setConfirm(null)}>
         {confirm && (
           <div className="stack">
             <p>{confirm.kind === "reissue"

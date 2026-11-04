@@ -90,7 +90,7 @@ export default function QuizPanel({ event, quizzes, reload }) {
         )
       })}
 
-      <Dialog open={Boolean(editor)} title={editor?.id ? "Edit quiz" : "New quiz"} wide onClose={() => setEditor(null)}>
+      <Dialog message={message} open={Boolean(editor)} title={editor?.id ? "Edit quiz" : "New quiz"} wide onClose={() => setEditor(null)}>
         {editor && (
           <form className="stack" onSubmit={save}>
             <div className="form-grid" style={{ gridTemplateColumns: "1fr 140px" }}>
@@ -133,7 +133,7 @@ export default function QuizPanel({ event, quizzes, reload }) {
         )}
       </Dialog>
 
-      <Dialog open={Boolean(results)} title={results?.quiz.title || ""} wide onClose={() => setResults(null)}>
+      <Dialog message={message} open={Boolean(results)} title={results?.quiz.title || ""} wide onClose={() => setResults(null)}>
         {results && (
           <div className="stack">
             <div className="stats">
@@ -181,7 +181,7 @@ export default function QuizPanel({ event, quizzes, reload }) {
         )}
       </Dialog>
 
-      <Dialog open={Boolean(deleting)} title="Delete quiz?" onClose={() => setDeleting(null)}>
+      <Dialog message={message} open={Boolean(deleting)} title="Delete quiz?" onClose={() => setDeleting(null)}>
         {deleting && (
           <div className="stack">
             <p>{deleting.title} will be deleted.</p>

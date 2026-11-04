@@ -84,7 +84,7 @@ export default function BadgesPanel({ event, attendees, reload, go }) {
         </div>
       )}
 
-      <Dialog open={confirmResend} title="Resend every badge?" onClose={() => setConfirmResend(false)}>
+      <Dialog message={message} open={confirmResend} title="Resend every badge?" onClose={() => setConfirmResend(false)}>
         <p>{plural(withEmail.length, "attendee")} will get their badge again.</p>
         <div className="dialog-foot">
           <button className="secondary" onClick={() => setConfirmResend(false)}>Cancel</button>

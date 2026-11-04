@@ -127,7 +127,7 @@ export default function CertificatesPanel({ event, attendees, reload }) {
         </table>
       </div>
 
-      <Dialog open={confirmAll} title="Send certificates to all?" onClose={() => setConfirmAll(false)}>
+      <Dialog message={message} open={confirmAll} title="Send certificates to all?" onClose={() => setConfirmAll(false)}>
         <div className="stack">
           <p>
             {toIssue.length > 0 && <>{plural(toIssue.length, "certificate")} will be issued. </>}
@@ -141,7 +141,7 @@ export default function CertificatesPanel({ event, attendees, reload }) {
         </div>
       </Dialog>
 
-      <Dialog open={Boolean(revoking)} title="Revoke certificate?" onClose={() => setRevoking(null)}>
+      <Dialog message={message} open={Boolean(revoking)} title="Revoke certificate?" onClose={() => setRevoking(null)}>
         {revoking && (
           <form className="stack" onSubmit={async (e) => { e.preventDefault(); if (await act(revoking, "revoke", new FormData(e.currentTarget).get("reason"))) setRevoking(null) }}>
             <p>{revoking.fullName}&apos;s verification page will show it as revoked.</p>

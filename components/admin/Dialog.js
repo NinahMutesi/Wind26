@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import Icon from "./Icon"
 
-export default function Dialog({ open, title, onClose, children, wide = false }) {
+// A modal dialog covers the page's toast, so pass the page's `message` to show errors inside it.
+export default function Dialog({ open, title, onClose, children, wide = false, message = null }) {
   const ref = useRef(null)
   useEffect(() => {
     const el = ref.current
@@ -19,6 +20,7 @@ export default function Dialog({ open, title, onClose, children, wide = false })
             <h2>{title}</h2>
             <button type="button" className="ghost icon-btn" onClick={onClose} aria-label="Close"><Icon name="x" /></button>
           </div>
+          {message && message.tone !== "ok" && <Notice message={message} />}
           {children}
         </div>
       )}
