@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react"
 import { api } from "@/components/api"
 import Icon from "./Icon"
 import OverviewPanel from "./OverviewPanel"
@@ -26,21 +26,19 @@ const pageFromHash = () => {
   const id = typeof window === "undefined" ? "" : window.location.hash.slice(1)
   return PAGES.some((p) => p.id === id) ? id : "overview"
 }
+const onHashChange = (notify) => {
+  window.addEventListener("hashchange", notify)
+  return () => window.removeEventListener("hashchange", notify)
+}
 
 export default function AdminApp({ staff }) {
   const [events, setEvents] = useState(null)
   const [eventId, setEventId] = useState("")
   const [data, setData] = useState(null)
   const [quizzes, setQuizzes] = useState([])
-  const [page, setPage] = useState("overview")
+  // The page lives in the URL hash, so browser back and forward work.
+  const page = useSyncExternalStore(onHashChange, pageFromHash, () => "overview")
   const [error, setError] = useState("")
-
-  useEffect(() => {
-    setPage(pageFromHash())
-    const onHash = () => setPage(pageFromHash())
-    window.addEventListener("hashchange", onHash)
-    return () => window.removeEventListener("hashchange", onHash)
-  }, [])
 
   useEffect(() => {
     api("/api/admin/events")
@@ -83,7 +81,6 @@ export default function AdminApp({ staff }) {
 
   const go = useCallback((id) => {
     window.location.hash = id
-    setPage(id)
     window.scrollTo({ top: 0 })
   }, [])
 

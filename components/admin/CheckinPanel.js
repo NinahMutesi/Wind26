@@ -80,7 +80,7 @@ export default function CheckinPanel({ event, attendees, reload, local }) {
             )
           })}
         </div>
-        <p className="muted small">Scan with a phone or laptop camera, or a handheld scanner. If someone can't be scanned, record them from Attendees.</p>
+        <p className="muted small">Scan with a phone or laptop camera, or a handheld scanner. If someone can&apos;t be scanned, record them from Attendees.</p>
       </section>
 
       {!local && (

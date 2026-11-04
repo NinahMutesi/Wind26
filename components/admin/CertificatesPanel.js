@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import { api, formatDate } from "@/components/api"
 import { localParts } from "@/lib/shared/event-days.mjs"
 import Dialog, { Toast, plural, useAction } from "./Dialog"
@@ -26,12 +26,12 @@ export default function CertificatesPanel({ event, attendees, reload }) {
   const lastDay = event.days[event.days.length - 1]
   const beforeLastDay = localParts(event.timezone).date < lastDay.date
 
-  const rows = useMemo(() => attendees.filter((a) => {
+  const rows = attendees.filter((a) => {
     if (filter === "eligible") return a.eligibility.eligible
     if (filter === "pending") return pending.includes(a)
     if (filter === "not") return !a.eligibility.eligible
     return true
-  }), [attendees, filter, pending])
+  })
 
   // Issue to everyone eligible, then email every issued certificate that hasn't been sent.
   const sendAll = () => run(async (progress) => {
