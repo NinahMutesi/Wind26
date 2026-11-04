@@ -40,6 +40,13 @@ test("open admin access is refused unless the site only runs on this computer", 
   assert.throws(() => readEnv({ ...local, ADMIN_ACCESS: "anyone" }), /signin, password or open/)
 })
 
+test("on Vercel an empty APP_URL uses the project's production address", () => {
+  const vercel = { ...goodEnv, APP_URL: "", VERCEL_PROJECT_PRODUCTION_URL: "wind26.vercel.app" }
+  assert.equal(readEnv(vercel).appUrl, "https://wind26.vercel.app")
+  assert.equal(readEnv({ ...vercel, APP_URL: "https://events.example.org" }).appUrl, "https://events.example.org")
+  assert.throws(() => readEnv({ ...goodEnv, APP_URL: "" }), /APP_URL/)
+})
+
 test("a shared admin password must be long and not reuse another secret", () => {
   assert.equal(readEnv({ ...goodEnv, ADMIN_ACCESS: "password", ADMIN_PASSWORD: "correct horse battery" }).adminAccess, "password")
   assert.throws(() => readEnv({ ...goodEnv, ADMIN_ACCESS: "password" }), /at least 12/)
