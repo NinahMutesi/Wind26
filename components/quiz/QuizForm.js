@@ -15,10 +15,36 @@ export default function QuizForm({ tagId, quiz, initialResult }) {
   if (result) {
     const passed = result.percent >= quiz.passMark
     return (
-      <div className={`score-card ${passed ? "ok" : "warn"}`} role="status">
-        <span className="score">{result.percent}%</span>
-        <span>{result.score} of {result.total} correct</span>
-        <span className="muted small">Your answers have been recorded. Thank you.</span>
+      <div className="stack">
+        <div className={`score-card ${passed ? "ok" : "warn"}`} role="status">
+          <span className="score">{result.percent}%</span>
+          <span>{result.score} of {result.total} correct</span>
+          <span className="muted small">Your answers have been recorded. Thank you.</span>
+        </div>
+        {result.review?.length > 0 && <h2>Your answers</h2>}
+        {result.review?.map((q, i) => {
+          const right = q.chosen === q.answer
+          return (
+            <div key={i} className="question">
+              <div className="review-head">
+                <span className="qnum">{i + 1}</span>
+                <span className="grow">{q.text}</span>
+                <span className={`pill ${right ? "ok" : "bad"}`}>{right ? "Correct" : "Wrong"}</span>
+              </div>
+              {q.options.map((option, j) => {
+                const tone = j === q.answer ? "right" : j === q.chosen ? "wrong" : ""
+                return (
+                  <div key={j} className={`option review ${tone}`}>
+                    <span className="letter">{LETTERS[j]}</span>
+                    <span className="grow">{option}</span>
+                    {j === q.chosen && <span className="small">Your answer</span>}
+                    {j === q.answer && j !== q.chosen && <span className="small">Correct answer</span>}
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })}
       </div>
     )
   }

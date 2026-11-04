@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { api, formatDate, formatTime } from "@/components/api"
-import { optionLetter, parseQuestions, questionsToText, validateQuizInput } from "@/lib/shared/quiz.mjs"
+import { optionLetter, parseQuestions, questionsToText, quizOpenFrom, validateQuizInput } from "@/lib/shared/quiz.mjs"
 import Dialog, { Toast, plural, useAction } from "./Dialog"
 import Icon from "./Icon"
 
@@ -15,6 +15,7 @@ export default function QuizPanel({ event, quizzes, reload }) {
   const [editor, setEditor] = useState(null) // { id?, title, passMark, text }
   const [results, setResults] = useState(null)
   const [deleting, setDeleting] = useState(null)
+  const opening = quizOpenFrom(event)
 
   const parsed = useMemo(() => {
     if (!editor) return null
@@ -58,6 +59,10 @@ export default function QuizPanel({ event, quizzes, reload }) {
         <button onClick={() => setEditor({ title: "", passMark: 50, text: "" })}><Icon name="plus" />New quiz</button>
       </div>
 
+      {!opening.allowed && (
+        <p className="notice info">Quizzes can be opened from {formatDate(opening.date)}, the first day of the event. You can create and edit them before then.</p>
+      )}
+
       {!quizzes.length && (
         <div className="card empty stack" style={{ alignItems: "center" }}>
           <Icon name="quiz" size={28} />
@@ -83,7 +88,8 @@ export default function QuizPanel({ event, quizzes, reload }) {
                 {q.status === "draft" && !q.responses && <button className="ghost" disabled={busy} onClick={() => setDeleting(q)}>Delete</button>}
                 {q.status === "open"
                   ? <button className="secondary" disabled={busy} onClick={() => setStatus(q, "closed")}><Icon name="stop" />Close</button>
-                  : <button disabled={busy} onClick={() => setStatus(q, "open")}><Icon name="play" />{q.status === "draft" ? "Open quiz" : "Reopen"}</button>}
+                  : <button disabled={busy || !opening.allowed} title={opening.allowed ? undefined : `Opens from ${formatDate(opening.date)}`}
+                      onClick={() => setStatus(q, "open")}><Icon name="play" />{q.status === "draft" ? "Open quiz" : "Reopen"}</button>}
               </div>
             </div>
           </section>

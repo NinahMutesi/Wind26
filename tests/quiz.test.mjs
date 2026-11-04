@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { createEventScope } from "../lib/server/db/stores.mjs"
 import { COLLECTIONS } from "../lib/server/db/schema.mjs"
 import { createQuiz, quizResults, recordResponse, setQuizStatus, updateQuiz } from "../lib/server/services/quizzes.mjs"
-import { parseQuestions, questionsToText, scoreAnswers, validateQuizInput } from "../lib/shared/quiz.mjs"
+import { parseQuestions, publicQuestions, questionsToText, scoreAnswers, validateQuizInput } from "../lib/shared/quiz.mjs"
 import { memoryStore } from "./memory-store.mjs"
 
 const noAudit = async () => {}
@@ -39,6 +39,8 @@ test("scoring needs every question answered with a real option", () => {
   assert.equal(scoreAnswers(QUESTIONS, ["1", 0]).ok, false)
 })
 
+const STARTED = { startDate: "2020-01-01", timezone: "Africa/Kampala" }
+
 async function setup() {
   const store = memoryStore()
   const a = createEventScope(store, "eventA")
@@ -51,13 +53,15 @@ async function setup() {
 test("attendees answer an open quiz once, scored on the server", async () => {
   const { a, grace, quiz } = await setup()
   await assert.rejects(recordResponse(a, grace, quiz.id, [1, 0]), /Quiz not found/, "a draft quiz can't be answered")
-  await setQuizStatus(a, quiz.id, "open", noAudit)
-  assert.deepEqual(await recordResponse(a, grace, quiz.id, [1, 1]), { score: 1, total: 2, percent: 50, passed: true })
+  await setQuizStatus(a, STARTED, quiz.id, "open", noAudit)
+  const { review, ...score } = await recordResponse(a, grace, quiz.id, [1, 1])
+  assert.deepEqual(score, { score: 1, total: 2, percent: 50, passed: true })
+  assert.deepEqual(review.map((q) => [q.chosen, q.answer]), [[1, 1], [1, 0]], "after submitting, they see their answer and the right one")
   await assert.rejects(recordResponse(a, grace, quiz.id, [1, 0]), /already submitted/)
   const results = await quizResults(a, quiz.id)
   assert.equal(results.responses.length, 1)
   assert.deepEqual(results.perQuestion, [{ correct: 1, answered: 1 }, { correct: 0, answered: 1 }])
-  await setQuizStatus(a, quiz.id, "closed", noAudit)
+  await setQuizStatus(a, STARTED, quiz.id, "closed", noAudit)
   const peter = await a.create(COLLECTIONS.attendees, "peter", { fullName: "Peter Okello", tagId: "t2", role: "participant" })
   await assert.rejects(recordResponse(a, peter, quiz.id, [1, 0]), /closed/)
 })
@@ -65,15 +69,30 @@ test("attendees answer an open quiz once, scored on the server", async () => {
 test("questions are locked once a quiz has been opened", async () => {
   const { a, quiz } = await setup()
   await updateQuiz(a, quiz.id, { title: "Pre-test", passMark: 60, questions: QUESTIONS }, noAudit)
-  await setQuizStatus(a, quiz.id, "open", noAudit)
+  await setQuizStatus(a, STARTED, quiz.id, "open", noAudit)
   await assert.rejects(updateQuiz(a, quiz.id, { title: "Changed", passMark: 60, questions: QUESTIONS }, noAudit), /draft/)
-  await assert.rejects(setQuizStatus(a, quiz.id, "draft", noAudit), /can't be moved/)
+  await assert.rejects(setQuizStatus(a, STARTED, quiz.id, "draft", noAudit), /can't be moved/)
 })
 
 test("another event's quiz can't be seen or answered", async () => {
   const { b, grace, quiz, store } = await setup()
-  await setQuizStatus(createEventScope(store, "eventA"), quiz.id, "open", noAudit)
+  await setQuizStatus(createEventScope(store, "eventA"), STARTED, quiz.id, "open", noAudit)
   await assert.rejects(recordResponse(b, grace, quiz.id, [1, 0]), /Quiz not found/)
   await assert.rejects(quizResults(b, quiz.id), /Quiz not found/)
   assert.equal([...store.data.get(COLLECTIONS.quizResponses)?.values() || []].length, 0)
+})
+
+test("a quiz can't be opened before the first day of the event", async () => {
+  const { a, quiz } = await setup()
+  const event = { startDate: "2026-11-10", timezone: "Africa/Kampala" }
+  // 23:30 in Kampala on 9 Nov is 20:30 UTC.
+  await assert.rejects(setQuizStatus(a, event, quiz.id, "open", noAudit, new Date("2026-11-09T20:30:00Z")), /opened from/)
+  assert.equal((await a.get(COLLECTIONS.quizzes, quiz.id)).status, "draft")
+  await setQuizStatus(a, event, quiz.id, "open", noAudit, new Date("2026-11-09T21:05:00Z"))
+  assert.equal((await a.get(COLLECTIONS.quizzes, quiz.id)).status, "open")
+})
+
+test("the public quiz never carries the answers", () => {
+  const shown = publicQuestions(QUESTIONS)
+  assert.ok(shown.every((q) => !("answer" in q)))
 })

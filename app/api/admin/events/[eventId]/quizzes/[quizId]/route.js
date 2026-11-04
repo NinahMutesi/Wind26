@@ -18,9 +18,9 @@ export const PUT = route(async (request, { eventId, quizId }) => {
 
 // Body: { status: "open" | "closed" }.
 export const PATCH = route(async (request, { eventId, quizId }) => {
-  const { db, audit } = await adminContext(eventId)
+  const { db, event, audit } = await adminContext(eventId)
   const body = await readJson(request)
-  await setQuizStatus(db, quizId, String(body.status || ""), audit)
+  await setQuizStatus(db, event, quizId, String(body.status || ""), audit)
   return json({ ok: true })
 })
 
