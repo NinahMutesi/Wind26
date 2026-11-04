@@ -10,5 +10,7 @@
   "checkinCloses": "18:00",
   "certificateMinDays": 3,
   "designKey": "wind26",
-  "contactEmail": ""
+  "contactEmail": "",
+  "quizOpens": "08:00",
+  "organiser": "National Renewable Energy Platform (NREP)"
 }

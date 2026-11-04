@@ -34,6 +34,7 @@ const fields = {
   startDate: profile.startDate, endDate: profile.endDate, timezone: profile.timezone,
   checkinOpens: profile.checkinOpens, checkinCloses: profile.checkinCloses,
   certificateMinDays: profile.certificateMinDays, designKey: profile.designKey, contactEmail: profile.contactEmail || "",
+  quizOpens: profile.quizOpens || "", organiser: profile.organiser || "",
 }
 
 const existing = (await target.docs.list(COLLECTIONS.events, [Query.equal("code", profile.code), Query.limit(1)])).documents?.[0]

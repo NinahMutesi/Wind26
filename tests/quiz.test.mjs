@@ -82,13 +82,15 @@ test("another event's quiz can't be seen or answered", async () => {
   assert.equal([...store.data.get(COLLECTIONS.quizResponses)?.values() || []].length, 0)
 })
 
-test("a quiz can't be opened before the first day of the event", async () => {
+test("a quiz can't be opened before 08:00 on the first day of the event", async () => {
   const { a, quiz } = await setup()
-  const event = { startDate: "2026-11-10", timezone: "Africa/Kampala" }
-  // 23:30 in Kampala on 9 Nov is 20:30 UTC.
-  await assert.rejects(setQuizStatus(a, event, quiz.id, "open", noAudit, new Date("2026-11-09T20:30:00Z")), /opened from/)
+  const event = { startDate: "2026-11-10", timezone: "Africa/Kampala", quizOpens: "08:00", checkinOpens: "07:00" }
+  // Kampala is UTC+3: 23:30 on 9 Nov, then 07:59 and 08:00 on 10 Nov.
+  for (const early of ["2026-11-09T20:30:00Z", "2026-11-10T04:59:00Z"]) {
+    await assert.rejects(setQuizStatus(a, event, quiz.id, "open", noAudit, new Date(early)), /08:00/)
+  }
   assert.equal((await a.get(COLLECTIONS.quizzes, quiz.id)).status, "draft")
-  await setQuizStatus(a, event, quiz.id, "open", noAudit, new Date("2026-11-09T21:05:00Z"))
+  await setQuizStatus(a, event, quiz.id, "open", noAudit, new Date("2026-11-10T05:00:00Z"))
   assert.equal((await a.get(COLLECTIONS.quizzes, quiz.id)).status, "open")
 })
 

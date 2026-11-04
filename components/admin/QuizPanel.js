@@ -60,7 +60,7 @@ export default function QuizPanel({ event, quizzes, reload }) {
       </div>
 
       {!opening.allowed && (
-        <p className="notice info">Quizzes can be opened from {formatDate(opening.date)}, the first day of the event. You can create and edit them before then.</p>
+        <p className="notice info">Quizzes can be opened from {opening.time} on {formatDate(opening.date)}, the first day of the event. You can create and edit them before then.</p>
       )}
 
       {!quizzes.length && (
@@ -88,7 +88,7 @@ export default function QuizPanel({ event, quizzes, reload }) {
                 {q.status === "draft" && !q.responses && <button className="ghost" disabled={busy} onClick={() => setDeleting(q)}>Delete</button>}
                 {q.status === "open"
                   ? <button className="secondary" disabled={busy} onClick={() => setStatus(q, "closed")}><Icon name="stop" />Close</button>
-                  : <button disabled={busy || !opening.allowed} title={opening.allowed ? undefined : `Opens from ${formatDate(opening.date)}`}
+                  : <button disabled={busy || !opening.allowed} title={opening.allowed ? undefined : `Opens at ${opening.time} on ${formatDate(opening.date)}`}
                       onClick={() => setStatus(q, "open")}><Icon name="play" />{q.status === "draft" ? "Open quiz" : "Reopen"}</button>}
               </div>
             </div>
