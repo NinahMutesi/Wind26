@@ -2,7 +2,7 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import { createEventScope } from "../lib/server/db/stores.mjs"
 import { COLLECTIONS } from "../lib/server/db/schema.mjs"
-import { createQuiz, previewQuiz, quizResults, recordResponse, setQuizStatus, updateQuiz } from "../lib/server/services/quizzes.mjs"
+import { compare, createQuiz, listQuizzes, previewQuiz, quizResults, recordResponse, setQuizStatus, updateQuiz } from "../lib/server/services/quizzes.mjs"
 import { parseQuestions, publicQuestions, questionsToText, scoreAnswers, validateQuizInput } from "../lib/shared/quiz.mjs"
 import { memoryStore } from "./memory-store.mjs"
 
@@ -39,7 +39,7 @@ test("scoring needs every question answered with a real option", () => {
   assert.equal(scoreAnswers(QUESTIONS, ["1", 0]).ok, false)
 })
 
-const STARTED = { startDate: "2020-01-01", timezone: "Africa/Kampala" }
+const STARTED = { startDate: "2020-01-01", endDate: "2020-01-03", timezone: "Africa/Kampala" }
 
 async function setup() {
   const store = memoryStore()
@@ -115,4 +115,33 @@ test("the badge email carries the attendee's fixed quiz link and the opening tim
     assert.match(part, /https:\/\/x\.test\/t\/abc\/quiz/)
     assert.match(part, /opens at 08:00 on Tuesday 10 November/)
   }
+})
+
+const EVENT = { startDate: "2026-11-10", endDate: "2026-11-12", timezone: "Africa/Kampala", quizOpens: "08:00" }
+const kampala = (date, time) => new Date(`${date}T${time}:00+03:00`)
+
+test("pre-training comes first, post-training only on the last day and it closes the pre-training quiz", async () => {
+  const { a, grace } = await setup()
+  const pre = await createQuiz(a, { title: "Before", kind: "pre", passMark: 50, questions: QUESTIONS }, noAudit)
+  const post = await createQuiz(a, { title: "After", kind: "post", passMark: 50, questions: QUESTIONS }, noAudit)
+  await assert.rejects(createQuiz(a, { title: "Another", kind: "pre", passMark: 50, questions: QUESTIONS }, noAudit), /already a pre-training/)
+
+  await setQuizStatus(a, EVENT, pre.id, "open", noAudit, kampala("2026-11-10", "08:00"))
+  await assert.rejects(setQuizStatus(a, EVENT, post.id, "open", noAudit, kampala("2026-11-11", "15:00")), /last day/)
+  await recordResponse(a, grace, pre.id, [0, 0])
+
+  await setQuizStatus(a, EVENT, post.id, "open", noAudit, kampala("2026-11-12", "08:00"))
+  assert.equal((await a.get(COLLECTIONS.quizzes, pre.id)).status, "closed", "opening the post-training quiz closes the pre-training one")
+  await assert.rejects(setQuizStatus(a, EVENT, pre.id, "open", noAudit, kampala("2026-11-12", "09:00")), /post-training quiz is open/)
+  await recordResponse(a, grace, post.id, [1, 0])
+
+  const listed = await listQuizzes(a)
+  assert.deepEqual(listed.filter((q) => q.kind !== "other").map((q) => q.kind), ["pre", "post"])
+  assert.deepEqual(listed.find((q) => q.kind === "post").comparison, { both: 1, preAverage: 50, postAverage: 100, improved: 1 })
+})
+
+test("the before-and-after comparison only counts people who took both", () => {
+  const r = (attendeeId, score) => ({ attendeeId, score, total: 10 })
+  assert.deepEqual(compare([r("a", 4), r("b", 6)], [r("a", 8), r("c", 9)]), { both: 1, preAverage: 40, postAverage: 80, improved: 1 })
+  assert.deepEqual(compare([], [r("a", 8)]), { both: 0, preAverage: null, postAverage: null, improved: 0 })
 })

@@ -5,6 +5,7 @@ import { openQuizzesForTag } from "@/lib/server/services/quizzes.mjs"
 import { formatDate } from "@/lib/shared/format.mjs"
 
 export const dynamic = "force-dynamic"
+const WHEN = { pre: "Before the training · ", post: "After the training · ", other: "" }
 export const metadata = { title: "Your event badge", robots: { index: false, follow: false }, referrer: "no-referrer" }
 
 // The attendee's digital badge. Shows only what is printed on the badge, plus any open quiz.
@@ -26,7 +27,7 @@ export default async function TagPage({ params }) {
         <Link key={q.id} className="quiz-link" href={`/t/${attendee.tagId}/quiz/${q.id}`}>
           <span>
             <strong>{q.title}</strong>
-            <span className="muted small">{q.done ? `Submitted · ${q.percent}%` : `${q.questionCount} questions`}</span>
+            <span className="muted small">{WHEN[q.kind]}{q.done ? `Submitted · ${q.percent}%` : `${q.questionCount} questions`}</span>
           </span>
           <span className="button">{q.done ? "View" : "Start"}</span>
         </Link>

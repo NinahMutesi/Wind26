@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/shared/format.mjs"
 import { quizOpenFrom } from "@/lib/shared/quiz.mjs"
 
 export const dynamic = "force-dynamic"
+const WHEN = { pre: "Before the training · ", post: "After the training · ", other: "" }
 export const metadata = { title: "Quiz", robots: { index: false, follow: false }, referrer: "no-referrer" }
 
 // The quiz link in the badge email. It never changes: it says when the quiz opens,
@@ -39,7 +40,7 @@ export default async function QuizEntryPage({ params }) {
         <Link key={q.id} className="quiz-link" href={`/t/${attendee.tagId}/quiz/${q.id}`}>
           <span>
             <strong>{q.title}</strong>
-            <span className="muted small">{q.done ? `Submitted · ${q.percent}%` : `${q.questionCount} questions`}</span>
+            <span className="muted small">{WHEN[q.kind]}{q.done ? `Submitted · ${q.percent}%` : `${q.questionCount} questions`}</span>
           </span>
           <span className="button">{q.done ? "View" : "Start"}</span>
         </Link>

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { api, formatDate, formatTime } from "@/components/api"
-import { optionLetter, parseQuestions, questionsToText, quizOpenFrom, validateQuizInput } from "@/lib/shared/quiz.mjs"
+import { QUIZ_KINDS, optionLetter, parseQuestions, questionsToText, quizOpenFrom, validateQuizInput } from "@/lib/shared/quiz.mjs"
 import Dialog, { Toast, plural, useAction } from "./Dialog"
 import Icon from "./Icon"
 
@@ -12,20 +12,26 @@ const SAMPLE = "1. Which component converts rotation into electricity?\nA. Rotor
 export default function QuizPanel({ event, quizzes, reload }) {
   const base = `/api/admin/events/${event.id}/quizzes`
   const { busy, message, setMessage, run } = useAction(reload)
-  const [editor, setEditor] = useState(null) // { id?, title, passMark, text }
+  const [editor, setEditor] = useState(null) // { id?, title, kind, passMark, text }
   const [results, setResults] = useState(null)
   const [deleting, setDeleting] = useState(null)
-  const opening = quizOpenFrom(event)
+  const firstDay = quizOpenFrom(event)
+  const lastDay = quizOpenFrom(event, undefined, "post")
+  const taken = (kind, exceptId) => quizzes.some((q) => q.kind === kind && q.id !== exceptId)
+  const hasPre = taken("pre")
+  const hasPost = taken("post")
+  const newKind = !hasPre ? "pre" : !hasPost ? "post" : "other"
+  const NEW_TITLE = { pre: "Pre-training quiz", post: "Post-training quiz", other: "" }
 
   const parsed = useMemo(() => {
     if (!editor) return null
     const questions = parseQuestions(editor.text)
-    return { questions, check: validateQuizInput({ title: editor.title, passMark: Number(editor.passMark), questions }) }
+    return { questions, check: validateQuizInput({ title: editor.title, kind: editor.kind, passMark: Number(editor.passMark), questions }) }
   }, [editor])
 
   async function save(e) {
     e.preventDefault()
-    const body = { title: editor.title, passMark: Number(editor.passMark), questions: parsed.questions }
+    const body = { title: editor.title, kind: editor.kind, passMark: Number(editor.passMark), questions: parsed.questions }
     const ok = await run(() => api(editor.id ? `${base}/${editor.id}` : base, { method: editor.id ? "PUT" : "POST", body }),
       editor.id ? "Quiz saved." : "Quiz created. Open it when attendees should answer.")
     if (ok) setEditor(null)
@@ -33,7 +39,13 @@ export default function QuizPanel({ event, quizzes, reload }) {
 
   async function edit(q) {
     const r = await run(() => api(`${base}/${q.id}`))
-    if (r) setEditor({ id: q.id, title: q.title, passMark: q.passMark, text: questionsToText(r.quiz.questions) })
+    if (r) setEditor({ id: q.id, title: q.title, kind: q.kind, passMark: q.passMark, text: questionsToText(r.quiz.questions) })
+  }
+
+  // The usual set-up: the same questions before and after, so the scores can be compared.
+  async function copyAsPost(q) {
+    const r = await run(() => api(`${base}/${q.id}`))
+    if (r) setEditor({ title: NEW_TITLE.post, kind: "post", passMark: q.passMark, text: questionsToText(r.quiz.questions) })
   }
 
   async function showResults(q) {
@@ -42,7 +54,9 @@ export default function QuizPanel({ event, quizzes, reload }) {
   }
 
   const setStatus = (q, status) => run(() => api(`${base}/${q.id}`, { method: "PATCH", body: { status } }),
-    status === "open" ? `${q.title} is open. Attendees find it on their digital badge.` : `${q.title} is closed.`)
+    status === "open"
+      ? `${q.title} is open. Attendees find it on their badge and quiz link.${q.kind === "post" && quizzes.some((x) => x.kind === "pre" && x.status === "open") ? " The pre-training quiz has been closed." : ""}`
+      : `${q.title} is closed.`)
 
   async function remove() {
     const ok = await run(() => api(`${base}/${deleting.id}`, { method: "DELETE" }), "Quiz deleted.")
@@ -56,11 +70,14 @@ export default function QuizPanel({ event, quizzes, reload }) {
           <h1>Quiz</h1>
           <p>Attendees answer on their phone from their digital badge. Each person can submit once.</p>
         </div>
-        <button onClick={() => setEditor({ title: "", passMark: 50, text: "" })}><Icon name="plus" />New quiz</button>
+        <button onClick={() => setEditor({ title: NEW_TITLE[newKind], kind: newKind, passMark: 50, text: "" })}><Icon name="plus" />New quiz</button>
       </div>
 
-      {!opening.allowed && (
-        <p className="notice info">Quizzes can be opened from {opening.time} on {formatDate(opening.date)}, the first day of the event. You can create and edit them before then.</p>
+      {!lastDay.allowed && (
+        <p className="notice info">
+          {firstDay.allowed ? "" : <>The pre-training quiz can be opened from {firstDay.time} on {formatDate(firstDay.date)}. </>}
+          The post-training quiz can be opened from {lastDay.time} on {formatDate(lastDay.date)}, the last day, and opening it closes the pre-training quiz.
+        </p>
       )}
 
       {!quizzes.length && (
@@ -72,20 +89,26 @@ export default function QuizPanel({ event, quizzes, reload }) {
 
       {quizzes.map((q) => {
         const [tone, label] = STATUS[q.status]
+        const opening = q.kind === "post" ? lastDay : firstDay
+        const c = q.comparison
         return (
           <section key={q.id} className="card">
             <div className="card-head">
               <div className="stack" style={{ gap: 4 }}>
-                <div className="row"><h2>{q.title}</h2><span className={`pill ${tone}`}>{label}</span></div>
+                <div className="row"><h2>{q.title}</h2><span className="pill brand">{QUIZ_KINDS[q.kind]}</span><span className={`pill ${tone}`}>{label}</span></div>
                 <p className="small">
                   {plural(q.questionCount, "question")} · pass mark {q.passMark}% · {plural(q.responses, "response")}
                   {q.average !== null && ` · average ${q.average}% · ${q.passed} passed`}
                 </p>
+                {c?.both > 0 && (
+                  <p className="small"><strong>Before and after:</strong> {c.preAverage}% → {c.postAverage}% average for the {plural(c.both, "person", "people")} who took both · {c.improved} improved</p>
+                )}
               </div>
               <div className="row">
                 <a className="button secondary" href={`/admin/quiz-preview/${event.id}/${q.id}`} target="_blank" rel="noreferrer">Preview</a>
                 {q.responses > 0 && <button className="secondary" disabled={busy} onClick={() => showResults(q)}>Results</button>}
                 {q.status === "draft" && <button className="secondary" disabled={busy} onClick={() => edit(q)}><Icon name="edit" />Edit</button>}
+                {q.kind === "pre" && !hasPost && <button className="secondary" disabled={busy} onClick={() => copyAsPost(q)}>Copy as post-training</button>}
                 {q.status === "draft" && !q.responses && <button className="ghost" disabled={busy} onClick={() => setDeleting(q)}>Delete</button>}
                 {q.status === "open"
                   ? <button className="secondary" disabled={busy} onClick={() => setStatus(q, "closed")}><Icon name="stop" />Close</button>
@@ -100,9 +123,14 @@ export default function QuizPanel({ event, quizzes, reload }) {
       <Dialog message={message} open={Boolean(editor)} title={editor?.id ? "Edit quiz" : "New quiz"} wide onClose={() => setEditor(null)}>
         {editor && (
           <form className="stack" onSubmit={save}>
-            <div className="form-grid" style={{ gridTemplateColumns: "1fr 140px" }}>
+            <div className="form-grid" style={{ gridTemplateColumns: "1fr 170px 120px" }}>
               <label htmlFor="q-title">Title<input id="q-title" required maxLength={120} value={editor.title} autoFocus
-                placeholder="Post-training quiz" onChange={(e) => setEditor({ ...editor, title: e.target.value })} /></label>
+                placeholder="Pre-training quiz" onChange={(e) => setEditor({ ...editor, title: e.target.value })} /></label>
+              <label htmlFor="q-kind">Type
+                <select id="q-kind" value={editor.kind} onChange={(e) => setEditor({ ...editor, kind: e.target.value })}>
+                  {Object.entries(QUIZ_KINDS).map(([k, l]) => <option key={k} value={k} disabled={k !== "other" && taken(k, editor.id)}>{l}</option>)}
+                </select>
+              </label>
               <label htmlFor="q-pass">Pass mark (%)<input id="q-pass" type="number" min={0} max={100} required value={editor.passMark}
                 onChange={(e) => setEditor({ ...editor, passMark: e.target.value })} /></label>
             </div>
