@@ -2,10 +2,12 @@
 
 import { useState } from "react"
 import { api } from "@/components/api"
+import { percent, reviewAnswers, scoreAnswers } from "@/lib/shared/quiz.mjs"
 
 const LETTERS = "ABCDEF"
 
-export default function QuizForm({ tagId, quiz, initialResult }) {
+// preview: an admin trying the quiz. quiz.questions then include the answers, and nothing is sent.
+export default function QuizForm({ tagId, quiz, initialResult, preview = false }) {
   const [answers, setAnswers] = useState(() => quiz.questions.map(() => -1))
   const [result, setResult] = useState(initialResult)
   const [error, setError] = useState("")
@@ -19,8 +21,11 @@ export default function QuizForm({ tagId, quiz, initialResult }) {
         <div className={`score-card ${passed ? "ok" : "warn"}`} role="status">
           <span className="score">{result.percent}%</span>
           <span>{result.score} of {result.total} correct</span>
-          <span className="muted small">Your answers have been recorded. Thank you.</span>
+          <span className="muted small">{preview ? "Preview only. Nothing was saved." : "Your answers have been recorded. Thank you."}</span>
         </div>
+        {preview && (
+          <button type="button" className="secondary" onClick={() => { setResult(null); setAnswers(quiz.questions.map(() => -1)); window.scrollTo({ top: 0 }) }}>Try again</button>
+        )}
         {result.review?.length > 0 && <h2>Your answers</h2>}
         {result.review?.map((q, i) => {
           const right = q.chosen === q.answer
@@ -48,7 +53,7 @@ export default function QuizForm({ tagId, quiz, initialResult }) {
       </div>
     )
   }
-  if (quiz.status !== "open") return <p className="notice warn">This quiz is closed.</p>
+  if (!preview && quiz.status !== "open") return <p className="notice warn">This quiz is closed.</p>
 
   async function submit(e) {
     e.preventDefault()
@@ -56,6 +61,12 @@ export default function QuizForm({ tagId, quiz, initialResult }) {
     if (missing >= 0) {
       setError(`Answer question ${missing + 1} before submitting.`)
       document.getElementById(`q-${missing}`)?.scrollIntoView({ behavior: "smooth", block: "center" })
+      return
+    }
+    if (preview) {
+      const scored = scoreAnswers(quiz.questions, answers)
+      setResult({ score: scored.score, total: scored.total, percent: percent(scored.score, scored.total), review: reviewAnswers(quiz.questions, answers) })
+      window.scrollTo({ top: 0, behavior: "smooth" })
       return
     }
     setBusy(true)
@@ -89,7 +100,7 @@ export default function QuizForm({ tagId, quiz, initialResult }) {
         <button type="submit" disabled={busy}>{busy ? "Submitting…" : "Submit answers"}</button>
       </div>
       {error && <p className="notice bad" role="alert">{error}</p>}
-      <p className="muted small">You can submit once.</p>
+      <p className="muted small">{preview ? "Attendees can submit once." : "You can submit once."}</p>
     </form>
   )
 }

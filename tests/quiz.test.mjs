@@ -2,7 +2,7 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import { createEventScope } from "../lib/server/db/stores.mjs"
 import { COLLECTIONS } from "../lib/server/db/schema.mjs"
-import { createQuiz, quizResults, recordResponse, setQuizStatus, updateQuiz } from "../lib/server/services/quizzes.mjs"
+import { createQuiz, previewQuiz, quizResults, recordResponse, setQuizStatus, updateQuiz } from "../lib/server/services/quizzes.mjs"
 import { parseQuestions, publicQuestions, questionsToText, scoreAnswers, validateQuizInput } from "../lib/shared/quiz.mjs"
 import { memoryStore } from "./memory-store.mjs"
 
@@ -97,4 +97,12 @@ test("a quiz can't be opened before 08:00 on the first day of the event", async 
 test("the public quiz never carries the answers", () => {
   const shown = publicQuestions(QUESTIONS)
   assert.ok(shown.every((q) => !("answer" in q)))
+})
+
+test("an admin preview works on a draft and saves nothing", async () => {
+  const { a, quiz, store } = await setup()
+  const shown = await previewQuiz(a, quiz.id)
+  assert.equal(shown.status, "draft")
+  assert.deepEqual(shown.questions.map((q) => q.answer), [1, 0])
+  assert.equal([...store.data.get(COLLECTIONS.quizResponses)?.values() || []].length, 0)
 })
