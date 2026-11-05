@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import jsQR from "jsqr"
 import { api, formatDate, formatTime } from "@/components/api"
+import { Columns } from "@/components/admin/Charts"
 
 const SAME_CODE_COOLDOWN_MS = 4000
 
@@ -161,6 +162,8 @@ export default function ScannerApp({ local = false }) {
         </div>
       </div>
 
+      {summary && <TodayStrip summary={summary} />}
+
       {!online && <p className="notice bad">No connection. Scans can&apos;t be saved right now. Write names on the paper list; an admin will add them later.</p>}
       {w && !w.ok && <p className="notice warn">{w.message}</p>}
 
@@ -233,7 +236,88 @@ export default function ScannerApp({ local = false }) {
           </form>
         )}
       </div>
+      {summary && <DeskStats summary={summary} />}
       {!local && <p className="muted small">Signed in as {summary?.operator?.name}. Hand checks are logged with your name.</p>}
     </main>
+  )
+}
+
+const clock = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`
+
+// Today's progress as a ring, with how people were checked in.
+function TodayStrip({ summary }) {
+  const { checkedInToday: done, total, today } = summary
+  const share = total ? done / total : 0
+  const r = 26
+  const c = 2 * Math.PI * r
+  return (
+    <div className="card sc-strip">
+      <svg width="68" height="68" viewBox="0 0 68 68" role="img" aria-label={`${done} of ${total} checked in today`}>
+        <circle cx="34" cy="34" r={r} fill="none" stroke="var(--line)" strokeWidth="7" />
+        <circle cx="34" cy="34" r={r} fill="none" stroke="var(--brand)" strokeWidth="7" strokeLinecap="round"
+          strokeDasharray={`${c * share} ${c}`} transform="rotate(-90 34 34)" />
+        <text x="34" y="38" textAnchor="middle" fontSize="13" fontWeight="600" fill="var(--ink)">{Math.round(share * 100)}%</text>
+      </svg>
+      <div className="grow">
+        <p><b className="num" style={{ fontSize: "1.4rem" }}>{done}</b> <span className="muted">of {total} checked in today</span></p>
+        <p className="small muted">{total - done} still to come</p>
+      </div>
+      {today && (
+        <dl className="sc-mini">
+          <div><dt>QR</dt><dd className="num">{today.qr}</dd></div>
+          <div><dt>By hand</dt><dd className="num">{today.manual}</dd></div>
+          <div><dt>By you</dt><dd className="num">{today.mine}</dd></div>
+        </dl>
+      )}
+    </div>
+  )
+}
+
+// Arrivals per half hour, each day's total and the last few names.
+function DeskStats({ summary }) {
+  const { today, days = [], total, window: w } = summary
+  const tz = summary.event?.timezone
+  const busiest = today?.slots.reduce((best, s) => (s.count > (best?.count || 0) ? s : best), null)
+  return (
+    <section className="card stack">
+      <div className="card-head">
+        <h2>At the desk</h2>
+        {busiest && <span className="small muted">Busiest: {clock(busiest.m)}–{clock(busiest.m + 29)}</span>}
+      </div>
+      {today?.slots.length ? (
+        <Columns compact color="var(--brand)" max={Math.max(1, ...today.slots.map((s) => s.count))}
+          items={today.slots.map((s) => ({
+            key: s.m, value: s.count, label: clock(s.m),
+            tip: [`${clock(s.m)}–${clock(s.m + 29)}`, `${s.count} checked in`], onClick: () => {},
+          }))} />
+      ) : <p className="muted small">{w?.ok ? "No one checked in yet today. Arrivals per half hour show here." : "Arrivals per half hour show here once check-in opens."}</p>}
+
+      {days.length > 0 && (
+        <div className="stack" style={{ gap: 6 }}>
+          <h3>Each day</h3>
+          {days.map((d) => (
+            <div key={d.day} className={`sc-day ${d.day === w?.day ? "today" : ""}`}>
+              <span className="small">Day {d.day} <span className="muted">{formatDate(d.date).replace(/ d{4}$/, "")}</span></span>
+              <span className="an-hbar-track" style={{ width: "100%" }}><i style={{ width: `${total ? Math.round((d.count / total) * 100) : 0}%` }} /></span>
+              <span className="small num">{d.count}/{total}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {today?.recent.length > 0 && (
+        <div className="stack" style={{ gap: 6 }}>
+          <h3>Just checked in</h3>
+          <ul className="sc-recent">
+            {today.recent.map((p, i) => (
+              <li key={i}>
+                <span className="grow"><b>{p.name}</b> <span className="muted small">{p.organization}</span></span>
+                <span className="small muted num">{formatTime(p.at, tz)}{p.source === "manual" ? " · by hand" : ""}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
   )
 }

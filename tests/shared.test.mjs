@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { extractTagId, isUuidV4, newUuid } from "../lib/shared/ids.mjs"
+import { attendanceCode, extractTagId, isUuidV4, newUuid } from "../lib/shared/ids.mjs"
 import { backfillDay, checkinWindow, eventDays, validateEventProfile } from "../lib/shared/event-days.mjs"
 import { attendanceCsv, certificateEligibility, csvCell } from "../lib/shared/attendance.mjs"
 import { maskEmail, validateAttendee, validateManualReason } from "../lib/shared/validation.mjs"
@@ -24,6 +24,9 @@ test("extractTagId reads links and bare UUIDs, and nothing else", () => {
   assert.equal(extractTagId(`https://events.example.org/t/${id}`), id)
   assert.equal(extractTagId(id.toUpperCase()), id)
   assert.equal(extractTagId(`https://x.org/t/${id}?utm=1`), id)
+  assert.equal(extractTagId(`WIND26:${id}`), id)
+  assert.equal(extractTagId(attendanceCode("wind26", id)), id)
+  assert.equal(extractTagId(`WIND26:${id}:x`), null)
   assert.equal(extractTagId("rec:v1:abcdef"), null)
   assert.equal(extractTagId(`https://x.org/t/${id}extra`), null)
   assert.equal(extractTagId(""), null)

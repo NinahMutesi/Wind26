@@ -10,9 +10,11 @@ import CheckinPanel from "./CheckinPanel"
 import QuizPanel from "./QuizPanel"
 import CertificatesPanel from "./CertificatesPanel"
 import ActivityPanel from "./ActivityPanel"
+import AnalyticsPanel from "./AnalyticsPanel"
 
 const PAGES = [
   { id: "overview", label: "Overview", icon: "home" },
+  { id: "analytics", label: "Analytics", icon: "chart" },
   { id: "attendees", label: "Attendees", icon: "users" },
   { id: "badges", label: "Badges", icon: "badge" },
   { id: "checkin", label: "Check-in", icon: "scan" },
@@ -136,6 +138,7 @@ export default function AdminApp({ staff }) {
           {event && (
             <>
               {page === "overview" && <OverviewPanel {...props} />}
+              {page === "analytics" && <AnalyticsPanel {...props} />}
               {page === "attendees" && <AttendeesPanel {...props} />}
               {page === "badges" && <BadgesPanel {...props} />}
               {page === "checkin" && <CheckinPanel {...props} />}

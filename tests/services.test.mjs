@@ -2,7 +2,7 @@ import test from "node:test"
 import assert from "node:assert/strict"
 import { createEventScope } from "../lib/server/db/stores.mjs"
 import { COLLECTIONS } from "../lib/server/db/schema.mjs"
-import { scannerCheckin, adminCheckin } from "../lib/server/services/checkins.mjs"
+import { scannerCheckin, adminCheckin, scannerSummary } from "../lib/server/services/checkins.mjs"
 import { issueCertificates } from "../lib/server/services/certificates.mjs"
 import { memoryStore } from "./memory-store.mjs"
 
@@ -76,4 +76,18 @@ test("certificates go only to attendees who meet the rule, once", async (t) => {
   assert.equal(result.status, "already_issued")
   ;[result] = await issueCertificates(a, eventA, admin, ["peter"], noAudit)
   assert.equal(result.status, "not_found", "another event's attendee is invisible")
+})
+
+test("the scanner summary counts today's check-ins by method, half hour, operator and day", async (t) => {
+  const { a, eventA } = await setup(t)
+  await a.create(COLLECTIONS.attendees, "amos", { fullName: "Amos Mugisha", tagId: "9b8a7c6d-5e4f-4a3b-9c2d-1e0f9a8b7c6d", role: "participant" })
+  await scannerCheckin(a, eventA, operator, { code: TAG_A })
+  await scannerCheckin(a, eventA, { id: "op2", email: "desk@example.org" }, { attendeeId: "amos", reason: "forgot_tag" })
+  const s = await scannerSummary(a, eventA, operator)
+  assert.equal(s.total, 2)
+  assert.equal(s.checkedInToday, 2)
+  assert.deepEqual([s.today.qr, s.today.manual, s.today.mine], [1, 1, 1])
+  assert.deepEqual(s.today.slots, [{ m: 600, count: 2 }]) // 07:00 UTC is 10:00 in Kampala
+  assert.deepEqual(s.today.recent.map((r) => r.name).sort(), ["Amos Mugisha", "Grace Achieng"])
+  assert.deepEqual(s.days.map((d) => d.count), [0, 2, 0])
 })

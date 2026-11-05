@@ -1,0 +1,287 @@
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
+import { api } from "@/components/api"
+import { localParts } from "@/lib/shared/event-days.mjs"
+import { QUIZ_KINDS } from "@/lib/shared/quiz.mjs"
+import { groupOrganisations } from "@/lib/shared/org.mjs"
+import Icon from "./Icon"
+import { Columns, useTip } from "./Charts"
+import { plural } from "./Dialog"
+
+// Two series (pre and post quiz) checked for colour-blind separation and contrast on white.
+const SERIES = ["#00809a", "#bf6800"]
+const BUCKET_MIN = 30
+const SCORE_BUCKETS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90].map((lo) => ({ lo, hi: lo === 90 ? 100 : lo + 9 }))
+const shortDay = (date) => new Date(`${date}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })
+const clock = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`
+const pct = (n, d) => (d ? Math.round((n / d) * 100) : 0)
+
+export default function AnalyticsPanel({ event, attendees, quizzes }) {
+  const [org, setOrg] = useState("")
+  const [segment, setSegment] = useState(null) // { id, label, test(attendee) }
+  const [day, setDay] = useState(null)
+  const [allOrgs, setAllOrgs] = useState(false)
+  const [results, setResults] = useState({}) // quizId -> Map(attendeeId -> percent)
+
+  // Scores per person, for the distribution chart and the people table.
+  useEffect(() => {
+    let cancelled = false
+    const answered = quizzes.filter((q) => q.responses > 0)
+    Promise.all(answered.map((q) => api(`/api/admin/events/${event.id}/quizzes/${q.id}`).then((r) => [q.id, new Map(r.responses.map((x) => [x.attendeeId, x.percent]))])))
+      .then((pairs) => { if (!cancelled) setResults(Object.fromEntries(pairs)) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [event.id, quizzes])
+
+  const orgOf = useMemo(() => groupOrganisations(attendees.map((a) => a.organization)), [attendees])
+  const groups = useMemo(() => {
+    const map = new Map()
+    for (const a of attendees) {
+      const { key, label } = orgOf.get(a.organization.trim())
+      if (!map.has(key)) map.set(key, { key, label, names: new Set(), people: [] })
+      map.get(key).people.push(a)
+      map.get(key).names.add(a.organization)
+    }
+    return [...map.values()]
+      .map((g) => ({ ...g, title: [...g.names].join(" · "), came: g.people.filter((a) => a.days.length).length }))
+      .sort((x, y) => y.people.length - x.people.length || x.label.localeCompare(y.label))
+  }, [attendees, orgOf])
+
+  const scoped = org ? attendees.filter((a) => orgOf.get(a.organization.trim()).key === org) : attendees
+  const people = segment ? scoped.filter(segment.test) : scoped
+  const orgLabel = groups.find((g) => g.key === org)?.label
+
+  const pick = (next) => setSegment((cur) => (cur?.id === next.id ? null : next))
+  const withEmail = scoped.filter((a) => a.email)
+  const badgesSent = withEmail.filter((a) => a.tagEmailedAt).length
+  const came = scoped.filter((a) => a.days.length).length
+  const eligible = scoped.filter((a) => a.eligibility.eligible).length
+  const pre = quizzes.find((q) => q.kind === "pre")
+  const preTook = pre && results[pre.id] ? scoped.filter((a) => results[pre.id].has(a.id)).length : 0
+
+  // Day columns and the arrival times of the chosen day.
+  const dayStats = event.days.map((d) => ({ ...d, came: scoped.filter((a) => a.days.includes(d.day)).length }))
+  const shownDay = day ?? ([...dayStats].reverse().find((d) => d.came)?.day || event.days[0]?.day)
+  const times = scoped.flatMap((a) => a.checkins.filter((c) => c.day === shownDay && c.at).map((c) => ({ id: a.id, m: localParts(event.timezone, new Date(c.at)).minutes })))
+  const arrivals = []
+  if (times.length) {
+    const first = Math.floor(Math.min(...times.map((t) => t.m)) / BUCKET_MIN) * BUCKET_MIN
+    const last = Math.floor(Math.max(...times.map((t) => t.m)) / BUCKET_MIN) * BUCKET_MIN
+    for (let m = first; m <= last; m += BUCKET_MIN) arrivals.push({ m, ids: new Set(times.filter((t) => t.m >= m && t.m < m + BUCKET_MIN).map((t) => t.id)) })
+  }
+
+  const answeredQuizzes = quizzes.filter((q) => results[q.id])
+  const scoreSeries = answeredQuizzes.slice(0, 2).map((q, i) => {
+    const scores = scoped.map((a) => results[q.id].get(a.id)).filter((s) => s !== undefined)
+    return { q, color: SERIES[i], counts: SCORE_BUCKETS.map((b) => scores.filter((s) => s >= b.lo && s <= b.hi).length), n: scores.length, avg: scores.length ? Math.round(scores.reduce((s, x) => s + x, 0) / scores.length) : null }
+  })
+  const scoreMax = Math.max(1, ...scoreSeries.flatMap((s) => s.counts))
+
+  function downloadCsv() {
+    const esc = (v) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v))
+    const head = ["Name", "Organisation", "Email", "Phone", "Days attended", "Badge emailed", ...answeredQuizzes.map((q) => `${q.title} (%)`)]
+    const rows = people.map((a) => [a.fullName, a.organization, a.email, a.phone, a.days.join(" "), a.tagEmailedAt ? "Yes" : a.email ? "No" : "No email",
+      ...answeredQuizzes.map((q) => results[q.id].get(a.id) ?? "")])
+    const blob = new Blob([[head, ...rows].map((r) => r.map(esc).join(",")).join("\n")], { type: "text/csv" })
+    const link = document.createElement("a")
+    link.href = URL.createObjectURL(blob)
+    link.download = `${event.code}-people.csv`
+    link.click()
+    URL.revokeObjectURL(link.href)
+  }
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1>Analytics</h1>
+          <p>Click any bar or number to see who is behind it.</p>
+        </div>
+        <label className="an-filter" htmlFor="an-org">Organisation
+          <select id="an-org" value={org} onChange={(e) => { setOrg(e.target.value); setSegment(null) }}>
+            <option value="">All organisations ({attendees.length})</option>
+            {groups.map((g) => <option key={g.key} value={g.key}>{g.label} ({g.people.length})</option>)}
+          </select>
+        </label>
+      </div>
+
+      <div className="stats">
+        <Kpi value={scoped.length} label="Registered" active={!segment} onClick={() => setSegment(null)} />
+        <Kpi value={badgesSent} of={withEmail.length} label="Badges emailed" hint="Show who hasn't had one"
+          active={segment?.id === "nobadge"} onClick={() => pick({ id: "nobadge", label: "Badge not emailed yet", test: (a) => !a.tagEmailedAt })} />
+        <Kpi value={came} of={scoped.length} label="Came at least one day" hint="Show who never came"
+          active={segment?.id === "never"} onClick={() => pick({ id: "never", label: "Not checked in on any day", test: (a) => !a.days.length })} />
+        <Kpi value={eligible} of={scoped.length} label="Eligible for certificate"
+          active={segment?.id === "eligible"} onClick={() => pick({ id: "eligible", label: "Eligible for a certificate", test: (a) => a.eligibility.eligible })} />
+        {pre && <Kpi value={preTook} of={scoped.length} label="Took the pre-training quiz" hint="Show who hasn't"
+          active={segment?.id === "nopre"} onClick={() => pick({ id: "nopre", label: `Haven't taken ${pre.title}`, test: (a) => !results[pre.id]?.has(a.id) })} />}
+      </div>
+
+      <div className="grid-2">
+        <section className="card stack">
+          <div className="card-head"><h2>Attendance by day</h2><span className="small muted">of {plural(scoped.length, "person", "people")}</span></div>
+          <Columns
+            items={dayStats.map((d) => ({
+              key: d.day, value: d.came, label: `Day ${d.day}`, sub: shortDay(d.date), text: `${d.came}`,
+              tip: [`Day ${d.day} · ${shortDay(d.date)}`, `${d.came} of ${scoped.length} checked in (${pct(d.came, scoped.length)}%)`, "Click to see who came"],
+              active: segment?.id === `day${d.day}`,
+              onClick: () => { setDay(d.day); pick({ id: `day${d.day}`, label: `Came on day ${d.day}`, test: (a) => a.days.includes(d.day) }) },
+            }))}
+            max={Math.max(1, scoped.length)} color="var(--brand)" />
+          <div className="row small">
+            {dayStats.map((d) => (
+              <button key={d.day} type="button" className={`an-chip ${segment?.id === `miss${d.day}` ? "on" : ""}`}
+                onClick={() => pick({ id: `miss${d.day}`, label: `Missed day ${d.day}`, test: (a) => !a.days.includes(d.day) })}>
+                {scoped.length - d.came} missed day {d.day}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="card stack">
+          <div className="card-head">
+            <h2>Arrival times</h2>
+            <div className="an-tabs" role="tablist" aria-label="Day">
+              {event.days.map((d) => (
+                <button key={d.day} type="button" role="tab" aria-selected={shownDay === d.day} onClick={() => setDay(d.day)}>Day {d.day}</button>
+              ))}
+            </div>
+          </div>
+          {arrivals.length ? (
+            <Columns compact
+              items={arrivals.map((b) => ({
+                key: b.m, value: b.ids.size, label: clock(b.m), text: b.ids.size || "",
+                tip: [`${clock(b.m)}–${clock(b.m + BUCKET_MIN - 1)}`, `${plural(b.ids.size, "person", "people")} checked in`],
+                active: segment?.id === `arr${shownDay}-${b.m}`,
+                onClick: () => pick({ id: `arr${shownDay}-${b.m}`, label: `Arrived ${clock(b.m)}–${clock(b.m + BUCKET_MIN - 1)} on day ${shownDay}`, test: (a) => b.ids.has(a.id) }),
+              }))}
+              max={Math.max(1, ...arrivals.map((b) => b.ids.size))} color="var(--brand)" />
+          ) : <p className="muted small an-empty">No check-ins on day {shownDay} yet.</p>}
+        </section>
+      </div>
+
+      <section className="card stack">
+        <div className="card-head">
+          <h2>Organisations</h2>
+          <span className="row small muted">
+            <span className="an-key"><i style={{ background: "var(--brand)" }} />came at least one day</span>
+            <span className="an-key"><i className="track" />registered</span>
+          </span>
+        </div>
+        <div className="an-hbars">
+          {(allOrgs ? groups : groups.slice(0, 10)).map((g) => (
+            <button key={g.key} type="button" className={`an-hbar ${org === g.key ? "on" : ""}`} title={g.title}
+              onClick={() => { setOrg(org === g.key ? "" : g.key); setSegment(null) }}>
+              <span className="an-hbar-label">{g.label}</span>
+              <span className="an-hbar-track" style={{ width: `${pct(g.people.length, groups[0].people.length)}%` }}>
+                <i style={{ width: `${pct(g.came, g.people.length)}%` }} />
+              </span>
+              <span className="an-hbar-num num">{g.came ? `${g.came} of ${g.people.length}` : g.people.length}</span>
+            </button>
+          ))}
+        </div>
+        {groups.length > 10 && (
+          <button type="button" className="ghost" style={{ alignSelf: "flex-start" }} onClick={() => setAllOrgs(!allOrgs)}>
+            {allOrgs ? "Show the top 10" : `Show all ${groups.length} organisations`}
+          </button>
+        )}
+      </section>
+
+      {scoreSeries.length > 0 && (
+        <section className="card stack">
+          <div className="card-head">
+            <h2>Quiz scores</h2>
+            <span className="row small muted">
+              {scoreSeries.map((s) => (
+                <span key={s.q.id} className="an-key"><i style={{ background: s.color }} />{QUIZ_KINDS[s.q.kind] || s.q.title}: {s.n} answered · average {s.avg ?? "—"}%</span>
+              ))}
+            </span>
+          </div>
+          <ScoreChart series={scoreSeries} max={scoreMax} segment={segment}
+            onPick={(s, b) => pick({ id: `score${s.q.id}-${b.lo}`, label: `${s.q.title}: scored ${b.lo}–${b.hi}%`, test: (a) => { const v = results[s.q.id].get(a.id); return v >= b.lo && v <= b.hi } })} />
+          {scoreSeries[1]?.q.comparison?.both > 0 && (
+            <p className="small">
+              <strong>Before and after:</strong> {scoreSeries[1].q.comparison.preAverage}% → {scoreSeries[1].q.comparison.postAverage}% for the {plural(scoreSeries[1].q.comparison.both, "person", "people")} who took both · {scoreSeries[1].q.comparison.improved} improved
+            </p>
+          )}
+        </section>
+      )}
+
+      <section className="stack" style={{ gap: 10 }}>
+        <div className="row spread">
+          <div className="row">
+            <h2>{plural(people.length, "person", "people")}</h2>
+            {orgLabel && <button type="button" className="an-chip on" onClick={() => setOrg("")}>{orgLabel}<Icon name="x" size={14} /></button>}
+            {segment && <button type="button" className="an-chip on" onClick={() => setSegment(null)}>{segment.label}<Icon name="x" size={14} /></button>}
+          </div>
+          <button type="button" className="secondary" onClick={downloadCsv} disabled={!people.length}><Icon name="download" />CSV of this list</button>
+        </div>
+        <div className="table-wrap" style={{ maxHeight: 480, overflowY: "auto" }}>
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Days</th>
+                <th>Badge</th>
+                {answeredQuizzes.map((q) => <th key={q.id} className="num">{QUIZ_KINDS[q.kind] || q.title}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {people.map((a) => (
+                <tr key={a.id}>
+                  <td className="person"><b>{a.fullName}</b><span>{a.organization}</span></td>
+                  <td>
+                    <span className="row" style={{ gap: 4, flexWrap: "nowrap" }}>
+                      {event.days.map((d) => <span key={d.day} className={`an-day ${a.days.includes(d.day) ? "on" : ""}`} title={`Day ${d.day}: ${a.days.includes(d.day) ? "came" : "not checked in"}`}>{d.day}</span>)}
+                    </span>
+                  </td>
+                  <td>{a.tagEmailedAt ? <span className="pill ok">Emailed</span> : a.email ? <span className="pill warn">Not sent</span> : <span className="pill neutral">No email</span>}</td>
+                  {answeredQuizzes.map((q) => <td key={q.id} className="num">{results[q.id].has(a.id) ? `${results[q.id].get(a.id)}%` : <span className="muted">—</span>}</td>)}
+                </tr>
+              ))}
+              {!people.length && <tr><td colSpan={3 + answeredQuizzes.length} className="muted">Nobody matches.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
+  )
+}
+
+function Kpi({ value, of = 0, label, hint, active, onClick }) {
+  return (
+    <button type="button" className={`stat an-kpi ${active ? "on" : ""}`} onClick={onClick} aria-pressed={active} title={hint}>
+      <b>{value}{of > 0 && <small> / {of}</small>}</b>
+      <span>{label}</span>
+      {of > 0 && <div className="meter"><i style={{ width: `${pct(value, of)}%` }} /></div>}
+    </button>
+  )
+}
+
+function ScoreChart({ series, max, segment, onPick }) {
+  const { box, show, hide, el } = useTip()
+  return (
+    <div className="an-chart" ref={box} onMouseLeave={hide}>
+      <div className="an-cols compact">
+        {SCORE_BUCKETS.map((b, i) => (
+          <div key={b.lo} className="an-col">
+            <span className="an-col-plot an-group">
+              {series.map((s) => {
+                const tip = [`${s.q.title}`, `${plural(s.counts[i], "person", "people")} scored ${b.lo}–${b.hi}%`, "Click to see who"]
+                return (
+                  <button key={s.q.id} type="button" className={`an-mark ${segment?.id === `score${s.q.id}-${b.lo}` ? "on" : ""}`} aria-label={tip.join(". ")}
+                    onMouseEnter={(e) => show(e, tip)} onFocus={(e) => show(e, tip)} onBlur={hide} onClick={() => onPick(s, b)}>
+                    <i style={{ height: `${Math.max(s.counts[i] ? 2 : 0, pct(s.counts[i], max))}%`, background: s.color }} />
+                  </button>
+                )
+              })}
+            </span>
+            <span className="an-col-label">{b.lo}%</span>
+          </div>
+        ))}
+      </div>
+      {el}
+    </div>
+  )
+}

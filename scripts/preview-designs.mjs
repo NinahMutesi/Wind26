@@ -26,6 +26,7 @@ const samples = [
     ...s,
     eventName: "Wind Energy Power Plants Training",
     tagUrl: `${appUrl}/t/${id}`,
+    tagCode: `PREVIEW:${id}`,
     verifyUrl: `${appUrl}/verify/${id}`,
     verifyHost: `${new URL(appUrl).host}/verify`,
     certificateId: id,

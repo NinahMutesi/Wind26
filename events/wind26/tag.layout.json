@@ -34,7 +34,7 @@
     },
     {
       "type": "qr",
-      "value": "{tagUrl}",
+      "value": "{tagCode}",
       "x": 6.9,
       "y": 123.7,
       "size": 16.2,

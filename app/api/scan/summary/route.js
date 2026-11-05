@@ -9,6 +9,6 @@ import { MANUAL_REASONS } from "@/lib/shared/validation.mjs"
 
 export const GET = route(async () => {
   const { operator, event, db } = await scannerContext()
-  const summary = await scannerSummary(db, event)
+  const summary = await scannerSummary(db, event, operator)
   return json({ operator: { name: operator.name }, event: publicEvent(event), reasons: MANUAL_REASONS, ...summary })
 })
