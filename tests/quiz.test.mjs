@@ -106,3 +106,13 @@ test("an admin preview works on a draft and saves nothing", async () => {
   assert.deepEqual(shown.questions.map((q) => q.answer), [1, 0])
   assert.equal([...store.data.get(COLLECTIONS.quizResponses)?.values() || []].length, 0)
 })
+
+test("the badge email carries the attendee's fixed quiz link and the opening time", async () => {
+  const { tagEmail } = await import("../lib/server/emails/templates.mjs")
+  const event = { name: "Training", startDate: "2026-11-10", endDate: "2026-11-12", timezone: "Africa/Kampala", checkinOpens: "07:00", quizOpens: "08:00" }
+  const mail = tagEmail({ event, attendee: { fullName: "Grace" }, link: "https://x.test/t/abc", quizLink: "https://x.test/t/abc/quiz", attached: false })
+  for (const part of [mail.text, mail.html]) {
+    assert.match(part, /https:\/\/x\.test\/t\/abc\/quiz/)
+    assert.match(part, /opens at 08:00 on Tuesday 10 November/)
+  }
+})
