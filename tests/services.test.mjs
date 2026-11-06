@@ -57,9 +57,17 @@ test("manual check-in needs a reason and can't reach another event's attendee", 
   assert.equal(row.reason, "forgot_tag")
 })
 
-test("scans are refused when the event isn't live", async (t) => {
+test("outside check-in a QR scan is only a test: it names the person and records nothing", async (t) => {
   const { a, eventA } = await setup(t)
-  await assert.rejects(() => scannerCheckin(a, { ...eventA, status: "closed" }, operator, { code: TAG_A }), /closed/)
+  for (const event of [{ ...eventA, status: "closed" }, { ...eventA, startDate: "2026-11-20", endDate: "2026-11-22" }, { ...eventA, checkinOpens: "12:00" }]) {
+    const r = await scannerCheckin(a, event, operator, { code: TAG_A })
+    assert.equal(r.status, "test")
+    assert.equal(r.attendee.fullName, "Grace Achieng")
+    assert.ok(r.message)
+  }
+  assert.equal((await a.listAll(COLLECTIONS.checkins)).length, 0, "nothing recorded")
+  await assert.rejects(() => scannerCheckin(a, { ...eventA, status: "closed" }, operator, { code: TAG_B }), /isn't registered for/, "unknown badges still fail")
+  await assert.rejects(() => scannerCheckin(a, { ...eventA, status: "closed" }, operator, { attendeeId: "grace", reason: "forgot_tag" }), /closed/, "manual check-in still refused")
 })
 
 test("certificates go only to attendees who meet the rule, once", async (t) => {

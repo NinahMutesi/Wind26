@@ -60,7 +60,10 @@ export default function ScannerApp({ local = false }) {
     try {
       const r = await api("/api/scan/checkin", { method: "POST", body })
       const tz = summary?.event?.timezone
-      if (r.status === "accepted") {
+      if (r.status === "test") {
+        setResult({ tone: "test", title: "Test scan: badge recognised. Nothing was recorded.", who: r.attendee.fullName, org: r.attendee.organization, note: r.message })
+        beep(true)
+      } else if (r.status === "accepted") {
         setResult({ tone: "ok", title: `Checked in · Day ${r.day}`, who: r.attendee.fullName, org: r.attendee.organization })
         beep(true)
       } else {
@@ -172,6 +175,7 @@ export default function ScannerApp({ local = false }) {
           <p style={{ fontWeight: 700 }}>{result.title}</p>
           {result.who && <p className="who">{result.who}</p>}
           {result.org && <p className="muted">{result.org}</p>}
+          {result.note && <p className="small">{result.note}</p>}
         </div>
       )}
 
