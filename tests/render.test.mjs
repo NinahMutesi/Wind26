@@ -1,9 +1,9 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { PDFDocument } from "pdf-lib"
-import { buildDrawList, fillTemplate, fitText } from "../lib/server/render/layout.mjs"
-import { renderPdf, renderPng } from "../lib/server/render/index.mjs"
-import { measure } from "../lib/server/render/fonts.mjs"
+import { buildDrawList, fillTemplate, fitText, validateLayout } from "../lib/server/render/layout.mjs"
+import { loadDesign, renderPdf, renderPng } from "../lib/server/render/index.mjs"
+import { FONTS, measure } from "../lib/server/render/fonts.mjs"
 
 const fixedMeasure = (_font, text, size) => text.length * size * 0.6
 
@@ -59,6 +59,24 @@ test("print sheet puts four tags on each A4 page", async () => {
   const { width, height } = pdf.getPage(0).getSize()
   assert.equal(Math.round(width), 595)
   assert.equal(Math.round(height), 842)
+})
+
+test("designs can place a fixed picture, such as a signature, from their assets folder", () => {
+  const layout = { page: { widthMm: 100, heightMm: 100 }, background: "assets/bg.png", elements: [{ type: "image", src: "assets/signature.png", x: 10, y: 60, width: 40, height: 15 }] }
+  assert.deepEqual(validateLayout(layout, FONTS), [])
+  const items = buildDrawList(layout, {}, measure)
+  assert.deepEqual(items.map((i) => i.src), ["assets/bg.png", "assets/signature.png"])
+  assert.deepEqual(items[1], { kind: "image", src: "assets/signature.png", x: 10, y: 60, w: 40, h: 15 })
+  for (const src of ["../secret.png", "assets/../x.png", "assets/sign.svg", "https://x.org/a.png"]) {
+    assert.ok(validateLayout({ ...layout, elements: [{ ...layout.elements[0], src }] }, FONTS).length, `${src} rejected`)
+  }
+  assert.ok(validateLayout({ ...layout, elements: [{ ...layout.elements[0], height: 0 }] }, FONTS).length, "needs a size")
+})
+
+test("the wind26 certificate carries the signature in the PNG and the PDF", async () => {
+  assert.ok(loadDesign("wind26", "certificate").images.has("assets/signature.png"))
+  const pdf = await PDFDocument.load(await renderPdf({ designKey: "wind26", kind: "certificate", records: [data] }))
+  assert.equal(pdf.getPageCount(), 1)
 })
 
 test("design keys can't escape the events folder", () => {

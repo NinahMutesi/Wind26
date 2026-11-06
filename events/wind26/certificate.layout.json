@@ -4,6 +4,14 @@
   "background": "assets/certificate-background.png",
   "elements": [
     {
+      "type": "image",
+      "src": "assets/signature.png",
+      "x": 25,
+      "y": 166.5,
+      "width": 74,
+      "height": 15.5
+    },
+    {
       "type": "text",
       "value": "{fullName}",
       "font": "GreatVibes-Regular",

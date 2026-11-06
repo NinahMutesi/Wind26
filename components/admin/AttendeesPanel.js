@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { api, formatTime } from "@/components/api"
+import { api, formatDate, formatTime } from "@/components/api"
 import { MANUAL_REASONS, ROLES } from "@/lib/shared/validation.mjs"
 import Dialog, { Toast, plural, useAction } from "./Dialog"
 import Icon from "./Icon"
@@ -14,7 +14,6 @@ const FIELDS = [
   ["email", "Email", "email", ""],
   ["phone", "Phone", "tel", ""],
 ]
-const closeMenu = (e) => { const d = e.currentTarget.closest("details"); if (d) d.open = false }
 
 export default function AttendeesPanel({ event, attendees, reload }) {
   const base = `/api/admin/events/${event.id}`
@@ -25,6 +24,12 @@ export default function AttendeesPanel({ event, attendees, reload }) {
   const [importing, setImporting] = useState(null) // { csv, preview, error }
   const [dayAction, setDayAction] = useState(null) // { attendee, day, present }
   const [confirm, setConfirm] = useState(null) // { kind, attendee }
+  const [actingId, setActingId] = useState(null) // the attendee whose actions are open
+  const acting = attendees.find((a) => a.id === actingId) || null
+  const setActing = (a) => setActingId(a ? a.id : null)
+  // Closes the action panel, then runs the chosen action (which may open its own dialog).
+  const then = (fn) => () => { setActing(null); fn() }
+  const editDetails = (a) => setEditing({ id: a.id, values: { fullName: a.fullName, organization: a.organization, email: a.email, phone: a.phone, role: a.role }, errors: {} })
 
   const filtered = useMemo(() => {
     const words = query.toLowerCase().split(/\s+/).filter(Boolean)
@@ -138,8 +143,8 @@ export default function AttendeesPanel({ event, attendees, reload }) {
         </div>
       )}
 
-      <div className="table-wrap">
-        <table>
+      <div className="table-wrap att-wrap">
+        <table className="att-table">
           <thead>
             <tr>
               <th className="check"><input type="checkbox" aria-label="Select all" checked={allShown} onChange={toggleAll} /></th>
@@ -159,7 +164,7 @@ export default function AttendeesPanel({ event, attendees, reload }) {
                   <span>{a.organization || "—"}{a.role !== "participant" ? ` · ${a.role}` : ""}</span>
                 </td>
                 <td className="hide-sm small">{a.email || <span className="muted">—</span>}</td>
-                <td>
+                <td className="att-days">
                   <div className="days">
                     {event.days.map((d) => {
                       const c = a.checkins.find((x) => x.day === d.day)
@@ -172,22 +177,11 @@ export default function AttendeesPanel({ event, attendees, reload }) {
                     })}
                   </div>
                 </td>
-                <td>
+                <td className="att-badge">
                   {a.tagEmailedAt ? <span className="pill ok">Emailed</span> : a.email ? <span className="pill neutral">Not sent</span> : <span className="pill warn">No email</span>}
                 </td>
                 <td className="actions">
-                  <details className="menu">
-                    <summary className="button ghost icon-btn" aria-label={`Actions for ${a.fullName}`}><Icon name="more" /></summary>
-                    <div className="menu-list" onClick={closeMenu}>
-                      <button onClick={() => setEditing({ id: a.id, values: { fullName: a.fullName, organization: a.organization, email: a.email, phone: a.phone, role: a.role }, errors: {} })}>Edit details</button>
-                      <a href={`/t/${a.tagId}`} target="_blank" rel="noreferrer">Open digital badge</a>
-                      <a href={`${base}/attendees/${a.id}/tag`}>Download badge image</a>
-                      <a href={badgePdfUrl(event.id, { layout: "a6", ids: [a.id] })}>Print badge (A6)</a>
-                      {a.email && <button disabled={busy} onClick={() => emailOne(a)}>{a.tagEmailedAt ? "Resend badge" : "Email badge"}</button>}
-                      <button onClick={() => setConfirm({ kind: "reissue", attendee: a })}>Replace QR code</button>
-                      {!a.days.length && !a.certificate && <button className="danger-item" onClick={() => setConfirm({ kind: "delete", attendee: a })}>Delete</button>}
-                    </div>
-                  </details>
+                  <button type="button" className="ghost icon-btn" aria-label={`Actions for ${a.fullName}`} onClick={() => setActing(a)}><Icon name="more" /></button>
                 </td>
               </tr>
             ))}
@@ -197,6 +191,41 @@ export default function AttendeesPanel({ event, attendees, reload }) {
           </tbody>
         </table>
       </div>
+
+      <Dialog message={message} open={Boolean(acting)} title={acting?.fullName || ""} onClose={() => setActing(null)}>
+        {acting && (
+          <div className="stack sheet">
+            <dl className="sheet-facts">
+              <dt>Organisation</dt><dd>{acting.organization || "—"}</dd>
+              <dt>Email</dt><dd>{acting.email || <span className="muted">None yet</span>}</dd>
+              {acting.phone && <><dt>Phone</dt><dd className="num">{acting.phone}</dd></>}
+              <dt>Badge</dt>
+              <dd>{acting.tagEmailedAt
+                ? <span className="pill ok">Emailed {formatDate(acting.tagEmailedAt).replace(/ \d{4}$/, "")} {formatTime(acting.tagEmailedAt, event.timezone)}</span>
+                : acting.email ? <span className="pill neutral">Not sent yet</span> : <span className="pill warn">No email</span>}</dd>
+              <dt>Attended</dt><dd>{acting.days.length ? acting.days.map((d) => `Day ${d}`).join(", ") : <span className="muted">Not yet</span>}</dd>
+            </dl>
+
+            {acting.email
+              ? <button type="button" className="big sheet-main" disabled={busy} onClick={then(() => emailOne(acting))}><Icon name="mail" />{acting.tagEmailedAt ? "Resend badge by email" : "Email badge"}</button>
+              : <button type="button" className="big sheet-main" onClick={then(() => editDetails(acting))}><Icon name="edit" />Add an email to send the badge</button>}
+
+            <div className="sheet-actions">
+              <a className="button secondary" href={`/t/${acting.tagId}`} target="_blank" rel="noreferrer"><Icon name="external" />Open digital badge</a>
+              <a className="button secondary" href={`${base}/attendees/${acting.id}/tag`}><Icon name="download" />Download badge image</a>
+              <a className="button secondary" href={badgePdfUrl(event.id, { layout: "a6", ids: [acting.id] })}><Icon name="printer" />Print badge (A6)</a>
+              <button type="button" className="secondary" onClick={then(() => editDetails(acting))}><Icon name="edit" />Edit details</button>
+            </div>
+
+            <div className="sheet-actions">
+              <button type="button" className="secondary" onClick={then(() => setConfirm({ kind: "reissue", attendee: acting }))}>Replace QR code</button>
+              {!acting.days.length && !acting.certificate
+                ? <button type="button" className="danger" onClick={then(() => setConfirm({ kind: "delete", attendee: acting }))}>Delete attendee</button>
+                : <p className="muted small">Can&apos;t be deleted: attendance or a certificate is recorded.</p>}
+            </div>
+          </div>
+        )}
+      </Dialog>
 
       <Dialog message={message} open={Boolean(editing)} title={editing?.id ? "Edit attendee" : "Add attendee"} onClose={() => setEditing(null)}>
         {editing && (

@@ -168,7 +168,8 @@ button.big, .button.big { padding: 12px 18px; font-size: 0.95rem; }
   background: #fff; border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); padding: 4px;
   display: flex; flex-direction: column;
 }
-.menu-list > * { background: none; border: none; color: var(--ink); justify-content: flex-start; padding: 8px 10px; border-radius: 6px; font-weight: 400; }
+.menu-list { text-align: left; }
+.menu-list > * { display: flex; width: 100%; background: none; border: none; color: var(--ink); justify-content: flex-start; padding: 8px 10px; border-radius: 6px; font-weight: 400; }
 .menu-list > *:hover { background: var(--hover); text-decoration: none; }
 .menu-list .danger-item { color: var(--bad); }
 
@@ -388,3 +389,34 @@ div.an-col:hover { background: none; }
 .sc-recent { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .sc-recent li { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .sc-recent li:last-child { border-bottom: 0; }
+
+/* Attendee action panel */
+.sheet-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; font-size: 0.875rem; }
+.sheet-facts dt { color: var(--ink-3); }
+.sheet-facts dd { margin: 0; overflow-wrap: anywhere; }
+.sheet-main { width: 100%; }
+.sheet-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+.sheet-actions > .button, .sheet-actions > button { justify-content: flex-start; padding: 11px 14px; }
+
+@media (max-width: 640px) {
+  /* Dialogs become sheets that rise from the bottom of the screen. */
+  dialog, dialog.wide { width: 100vw; max-width: 100vw; margin: auto 0 0; border-radius: 18px 18px 0 0; }
+  .dialog-body { max-height: calc(100dvh - 40px); padding: 18px 16px calc(20px + env(safe-area-inset-bottom)); }
+  .dialog-foot > button, .dialog-foot > .button { flex: 1 1 auto; }
+  .sheet-actions { grid-template-columns: 1fr; }
+
+  /* Attendees: one card per person instead of a wide table. */
+  .att-wrap { overflow: visible; }
+  .att-table thead { display: none; }
+  .att-table, .att-table tbody { display: block; }
+  .att-table tr { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; grid-template-areas: "check person actions" ". days badge"; align-items: center; gap: 8px 10px; padding: 12px 12px 12px 10px; border-bottom: 1px solid var(--line); }
+  .att-table tr:last-child { border-bottom: 0; }
+  .att-table td { border: 0; padding: 0; }
+  .att-table td.check { grid-area: check; width: auto; }
+  .att-table td.person { grid-area: person; }
+  .att-table td.att-days { grid-area: days; }
+  .att-table td.att-badge { grid-area: badge; justify-self: end; }
+  .att-table td.actions { grid-area: actions; }
+  .att-table td.actions .icon-btn { padding: 10px; }
+  .att-table td.empty { grid-column: 1 / -1; }
+}
