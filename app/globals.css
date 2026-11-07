@@ -421,3 +421,7 @@ div.an-col:hover { background: none; }
   .att-table td.actions .icon-btn { padding: 10px; }
   .att-table td.empty { grid-column: 1 / -1; }
 }
+
+/* Scanner helper codes on the Check-in page: easy to read aloud, tap to copy. */
+.scanner-code { padding: 4px 8px; }
+.scanner-code code { font-size: 15px; letter-spacing: 1px; font-weight: 700; color: var(--ink); }

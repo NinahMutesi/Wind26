@@ -66,6 +66,7 @@ export default function BadgesPanel({ event, attendees, reload, go }) {
                 </div>
                 <div className="row">
                   <a className="button" href={badgePdfUrl(event.id, { layout: "a4" })}><Icon name="download" />A4 · 4 per sheet</a>
+                  <a className="button secondary" href={badgePdfUrl(event.id, { layout: "a4-9" })}><Icon name="download" />A4 · 9 per sheet (smaller)</a>
                   <a className="button secondary" href={badgePdfUrl(event.id, { layout: "a6" })}><Icon name="download" />A6 · 1 per page</a>
                 </div>
               </div>

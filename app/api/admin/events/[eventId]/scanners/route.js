@@ -4,10 +4,11 @@ export const dynamic = "force-dynamic"
 import { route, json, readJson } from "@/lib/server/http.mjs"
 import { adminContext } from "@/lib/server/context.mjs"
 import { addScanner, listScanners } from "@/lib/server/services/staff.mjs"
+import { env } from "@/lib/server/env.mjs"
 
 export const GET = route(async (_request, { eventId }) => {
   const { event } = await adminContext(eventId)
-  return json({ scanners: await listScanners(event.$id) })
+  return json({ scanners: await listScanners(event.$id), codes: env().adminAccess === "password" })
 })
 
 export const POST = route(async (request, { eventId }) => {

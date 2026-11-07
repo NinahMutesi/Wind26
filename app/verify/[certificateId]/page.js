@@ -4,7 +4,7 @@ import { formatDate } from "@/lib/shared/format.mjs"
 export const dynamic = "force-dynamic"
 export const metadata = { title: "Certificate verification", robots: { index: false, follow: false } }
 
-// Public verification page behind the QR code printed on every certificate.
+// Public verification page, reached from the link and ID printed on every certificate.
 export default async function VerifyPage({ params }) {
   const { certificateId } = await params
   const found = await findPublicCertificate(certificateId)

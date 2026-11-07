@@ -97,7 +97,8 @@ export default function AdminApp({ staff }) {
   const attendees = data?.attendees || []
   const counts = { attendees: attendees.length, quiz: quizzes.length || "" }
   const [tone, label] = STATUS[event?.status] || STATUS.draft
-  const props = { event, attendees, quizzes, reload, go, local: staff.builtin }
+  // "local" means there are no accounts at all (open access on this computer), so no scanner helpers.
+  const props = { event, attendees, quizzes, reload, go, local: staff.local }
 
   return (
     <div className="shell">

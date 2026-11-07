@@ -62,7 +62,7 @@ Designs live in `events/<designKey>/`:
 events/wind26/
   event.json                 event profile (dates, venue, timezone, check-in hours, certificate rule)
   tag.layout.json            where the name, organisation and QR go on the tag (millimetres)
-  certificate.layout.json    where the name, QR and certificate ID go on the certificate
+  certificate.layout.json    where the name, signature and certificate ID go on the certificate
   assets/tag-background.png          the tag artwork without name or QR
   assets/certificate-background.png  the certificate artwork without a name
 ```

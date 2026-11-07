@@ -6,6 +6,6 @@ import { signInWithPassword } from "@/lib/server/auth.mjs"
 
 export const POST = route(async (request) => {
   const body = await readJson(request)
-  await signInWithPassword(body.password, clientIp(request), request.headers.get("user-agent") || "")
-  return json({ ok: true, redirectTo: "/admin" })
+  const { role } = await signInWithPassword(body.password, clientIp(request), request.headers.get("user-agent") || "")
+  return json({ ok: true, redirectTo: role === "scanner" ? "/scan" : "/admin" })
 })

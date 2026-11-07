@@ -25,9 +25,11 @@ export default function CheckinPanel({ event, attendees, reload, local }) {
   const { busy, message, setMessage, run } = useAction(reload)
   const [change, setChange] = useState(null)
   const [scanners, setScanners] = useState([])
+  const [codes, setCodes] = useState(false) // true when helpers sign in with a scanner code
   const today = localParts(event.timezone).date
 
-  const loadScanners = useCallback(() => api(`${base}/scanners`).then((r) => setScanners(r.scanners)).catch(() => {}), [base])
+  const loadScanners = useCallback(() => api(`${base}/scanners`).then((r) => { setScanners(r.scanners); setCodes(Boolean(r.codes)) }).catch(() => {}), [base])
+  const copy = (text) => navigator.clipboard?.writeText(text).then(() => setMessage({ tone: "ok", text: "Code copied." })).catch(() => {})
   useEffect(() => { if (!local) loadScanners() }, [local, loadScanners])
 
   async function changeStatus(e) {
@@ -41,7 +43,8 @@ export default function CheckinPanel({ event, attendees, reload, local }) {
     e.preventDefault()
     const form = e.currentTarget
     const data = Object.fromEntries(new FormData(form))
-    const ok = await run(() => api(`${base}/scanners`, { method: "POST", body: data }), `${data.name} can now sign in and scan.`)
+    const ok = await run(() => api(`${base}/scanners`, { method: "POST", body: data }),
+      codes ? `${data.name} is added. Give them their scanner code from the list.` : `${data.name} can now sign in and scan.`)
     if (ok) { form.reset(); loadScanners() }
   }
 
@@ -86,8 +89,12 @@ export default function CheckinPanel({ event, attendees, reload, local }) {
       {!local && (
         <section className="card stack">
           <div>
-            <h2>Scanner accounts</h2>
-            <p className="muted small">They can only check people in for this event.</p>
+            <h2>Scanner helpers</h2>
+            <p className="muted small">
+              {codes
+                ? "Each helper signs in at the sign-in page with their own scanner code, in place of the admin password. It opens only the scanner for this event. Disable a helper to turn their code off."
+                : "They can only check people in for this event."}
+            </p>
           </div>
           {scanners.length > 0 && (
             <div className="table-wrap">
@@ -95,7 +102,14 @@ export default function CheckinPanel({ event, attendees, reload, local }) {
                 <tbody>
                   {scanners.map((s) => (
                     <tr key={s.id}>
-                      <td className="person"><b>{s.name}</b><span>{s.email}</span></td>
+                      <td className="person"><b>{s.name}</b><span>{s.email || "No email"}</span></td>
+                      {s.code && (
+                        <td>
+                          <button type="button" className="ghost scanner-code" title="Copy code" disabled={s.status !== "active"} onClick={() => copy(s.code)}>
+                            <code>{s.code}</code>
+                          </button>
+                        </td>
+                      )}
                       <td><span className={`pill ${s.status === "active" ? "ok" : "neutral"}`}>{s.status}</span></td>
                       <td className="actions"><button className="secondary" disabled={busy} onClick={() => toggle(s)}>{s.status === "active" ? "Disable" : "Enable"}</button></td>
                     </tr>
@@ -106,7 +120,7 @@ export default function CheckinPanel({ event, attendees, reload, local }) {
           )}
           <form className="row" onSubmit={addScanner} style={{ alignItems: "flex-end" }}>
             <label htmlFor="s-name" style={{ flex: "1 1 160px" }}>Name<input id="s-name" name="name" required /></label>
-            <label htmlFor="s-email" style={{ flex: "2 1 220px" }}>Email<input id="s-email" name="email" type="email" required /></label>
+            <label htmlFor="s-email" style={{ flex: "2 1 220px" }}>{codes ? "Email (optional)" : "Email"}<input id="s-email" name="email" type="email" required={!codes} /></label>
             <button type="submit" disabled={busy}><Icon name="plus" />Add</button>
           </form>
         </section>

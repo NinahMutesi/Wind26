@@ -41,8 +41,9 @@ export default function LoginForm({ mode = "signin" }) {
         {error && <p className="notice bad" role="alert">{error}</p>}
         {step === "password" && (
           <label htmlFor="password">
-            Admin password
+            Admin password or scanner code
             <input id="password" type="password" autoComplete="current-password" required autoFocus value={password} onChange={(e) => setPassword(e.target.value)} />
+            <span className="muted small">Scanner helpers: enter the code the organiser gave you, e.g. K7QM-4RXP-2WTN.</span>
           </label>
         )}
         {step === "email" && (

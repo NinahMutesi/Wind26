@@ -79,6 +79,15 @@ test("the wind26 certificate carries the signature in the PNG and the PDF", asyn
   assert.equal(pdf.getPageCount(), 1)
 })
 
+test("the nine-per-page sheet fits nine smaller tags on each A4 page", async () => {
+  const bytes = await renderPdf({ designKey: "wind26", kind: "tag", sheet: "a4-3x3", records: Array(10).fill(data) })
+  const pdf = await PDFDocument.load(bytes)
+  assert.equal(pdf.getPageCount(), 2)
+  const { width, height } = pdf.getPage(0).getSize()
+  assert.equal(Math.round(width), 595)
+  assert.equal(Math.round(height), 842)
+})
+
 test("design keys can't escape the events folder", () => {
   assert.throws(() => renderPng({ designKey: "../lib", kind: "tag", data }), /Invalid design key/)
 })

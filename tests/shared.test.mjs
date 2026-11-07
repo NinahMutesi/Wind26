@@ -1,6 +1,6 @@
 import test from "node:test"
 import assert from "node:assert/strict"
-import { attendanceCode, extractTagId, isUuidV4, newUuid } from "../lib/shared/ids.mjs"
+import { attendanceCode, extractTagId, formatScannerCode, isUuidV4, newUuid, normalizeScannerCode } from "../lib/shared/ids.mjs"
 import { backfillDay, checkinWindow, eventDays, validateEventProfile } from "../lib/shared/event-days.mjs"
 import { attendanceCsv, certificateEligibility, csvCell } from "../lib/shared/attendance.mjs"
 import { maskEmail, validateAttendee, validateManualReason } from "../lib/shared/validation.mjs"
@@ -30,6 +30,16 @@ test("extractTagId reads links and bare UUIDs, and nothing else", () => {
   assert.equal(extractTagId("rec:v1:abcdef"), null)
   assert.equal(extractTagId(`https://x.org/t/${id}extra`), null)
   assert.equal(extractTagId(""), null)
+})
+
+test("scanner codes are easy to read out and forgiving to type", () => {
+  const code = formatScannerCode(Buffer.from("00112233445566778899aabbccddeeff", "hex"))
+  assert.match(code, /^[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/, "no 0, 1, I or O")
+  assert.equal(normalizeScannerCode(code.toLowerCase().replaceAll("-", " ")), code.replaceAll("-", ""))
+  assert.equal(normalizeScannerCode(` ${code} `), code.replaceAll("-", ""))
+  assert.equal(normalizeScannerCode("K7QM-4RXP-2WT"), "", "too short")
+  assert.equal(normalizeScannerCode("K7QM-4RXP-2WT0"), "", "0 is never in a code")
+  assert.equal(normalizeScannerCode("my admin password"), "")
 })
 
 test("event days and check-in window follow the event's timezone", () => {
